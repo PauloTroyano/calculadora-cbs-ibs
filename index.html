@@ -136,6 +136,10 @@
   .linha-tempo li { border-left: 3px solid var(--destaque); padding: 2px 0 10px 12px; margin: 0; }
   .linha-tempo li b:first-child { display: block; color: var(--destaque); }
   .exemplo td, .exemplo th { font-size: .8rem; padding: 5px 4px; }
+  .selecionada { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--destaque); background: var(--destaque-claro); border-radius: 6px; font-size: .88rem; }
+  .selecionada:empty { display: none; }
+  .selecionada span { display: block; font-size: .72rem; color: var(--suave); text-transform: uppercase; letter-spacing: .03em; }
+  .selecionada b { color: var(--destaque); margin-right: 4px; }
   footer { margin-top: 24px; font-size: .8rem; color: var(--suave); }
 </style>
 </head>
@@ -156,10 +160,10 @@
       <input id="codigo" inputmode="numeric" placeholder="ex.: 84713012" required>
       <div class="info" id="infoCodigo"></div>
 
-      <div class="rotulo-ajuda rotulo-codigo"><span class="rotulo-ajuda"><label for="busca">Classificação tributária (cClassTrib)</label><button type="button" class="ajuda" data-ajuda="classificacao" aria-label="O que é a classificação tributária?" title="O que é a classificação tributária?">?</button></span><button type="button" class="link-busca" id="abrirBuscaClasse">🔍 Busca por nome</button></div>
-      <input id="busca" type="search" placeholder="Buscar por nome ou código, ex.: alimentação, saúde, 200003">
+      <div class="rotulo-ajuda rotulo-codigo"><span class="rotulo-ajuda"><label for="classTrib">Classificação tributária</label><button type="button" class="ajuda" data-ajuda="classificacao" aria-label="O que é a classificação tributária?" title="O que é a classificação tributária?">?</button></span><button type="button" class="link-busca" id="abrirBuscaClasse">🔍 Busca por nome</button></div>
       <label class="chave"><input type="checkbox" id="soValidas" role="switch"><span class="trilho" aria-hidden="true"></span><span id="rotuloValidas">Mostrar só as que valem para este código</span></label>
-      <select id="classTrib" size="6" required></select>
+      <select id="classTrib" required></select>
+      <div class="selecionada" id="selClass"></div>
       <div class="contagem" id="contagem"></div>
       <div class="info" id="infoClass"></div>
 
@@ -327,7 +331,7 @@
     <p class="info">Base: Emenda Constitucional 132/2023 e LC 214/2025 (arts. 343 a 348 e disposições de transição). Explicação simplificada.</p>
   </div>
   <div id="ajuda-classificacao" hidden>
-    <h2>Classificação tributária (cClassTrib)</h2>
+    <h2>Classificação tributária</h2>
     <p>É um código de <b>6 dígitos</b> criado pela reforma. Ele diz <b>qual regra</b> se aplica à operação: tributação integral, alíquota reduzida, isenção, diferimento etc.</p>
     <p>Os 3 primeiros dígitos são o <b>CST</b> (situação tributária):</p>
     <ul>
@@ -336,7 +340,7 @@
       <li><code>400</code> e <code>410</code> isenção, imunidade e não incidência</li>
       <li><code>510</code> diferimento</li>
     </ul>
-    <p><b>Busca:</b> digite partes do nome em qualquer ordem, por exemplo "serviço saúde" ou "alimentação humana".</p>
+    <p><b>🔍 Busca por nome:</b> abre a busca ao lado. Digite partes do nome em qualquer ordem, por exemplo "serviço saúde" ou "alimentação humana", e clique na classificação para escolher.</p>
     <p><b>Chave "Mostrar só as que valem":</b> depois de digitar o NCM ou NBS completo, ligue a chave para ver só as classificações que podem ser usadas com aquele código. </p>
     <p><b>Estrelas (★):</b> com o código digitado, as sugestões sobem para o topo da lista. "Benefício da lei" são as classificações do anexo da LC 214/2025 que inclui o seu código, como a cesta básica para o arroz. "Padrão, mais comum" é a <code>000001</code>, tributação integral, usada quando o item não tem benefício. É o caso de um notebook.</p>
     <p>Na dúvida, comece por <code>000001</code> (tributação integral). Depois use a busca para procurar o seu setor, por exemplo "saúde", "alimentação" ou "transporte".</p>
@@ -412,17 +416,11 @@ let ultimoCodigo = null;
 
 function renderClasses() {
   atualizarChave();
-  // Busca por nome: todas as palavras precisam aparecer (em qualquer ordem, sem acento)
-  const palavras = semAcento($('busca').value.trim()).split(/\s+/).filter(Boolean);
   const cod = codigoCompleto();
   const filtrar = cod && $('soValidas').checked;
   const atual = $('classTrib').value;
   let lista = classes.map((c) => ({ c, v: cod ? vinculo(c, cod) : { valida: true } }))
-    .filter(({ c, v }) => {
-      if (filtrar && !v.valida) return false;
-      const texto = semAcento(`${c.codigo} ${c.descricao} ${c.cstDescricao} ${c.tratamento || ''}`);
-      return palavras.every((p) => texto.includes(p));
-    });
+    .filter(({ v }) => !(filtrar && !v.valida));
   // Com o código digitado, as sugestões vêm no topo, com estrela:
   // 1) as específicas do anexo da LC 214/2025 que inclui o código (benefício da lei);
   // 2) a 000001, tributação integral, que é a regra padrão e a mais comum quando não há benefício.
@@ -440,7 +438,7 @@ function renderClasses() {
   else if (lista.length) $('classTrib').value = lista[0].c.codigo;
   const especificas = lista.filter(({ v }) => v.especifica).length;
   $('contagem').textContent = !lista.length
-    ? (filtrar ? 'Nenhuma classificação válida para este código com essa busca.' : 'Nenhuma classificação encontrada para essa busca.')
+    ? 'Nenhuma classificação válida para este código.'
     : `${lista.length} de ${classes.length} classificações` + (filtrar ? ' valem para este código.' : '.')
       + (cod ? (especificas
         ? ` ★ no topo: ${especificas} com benefício da lei para este código e a 000001 (padrão).`
@@ -455,6 +453,7 @@ function mostrarClasse() {
   const c = classeAtual();
   const info = $('infoClass');
   info.className = 'info';
+  $('selClass').innerHTML = c ? `<span>Selecionada</span><b>${esc(c.codigo)}</b> ${esc(c.descricao)}` : '';
   if (!c) { info.textContent = 'Nenhuma classificação encontrada para esse filtro.'; return; }
   let txt = `CST ${c.cst} (${c.cstDescricao}) · ${c.tratamento}`;
   if (c.reducao.some((r) => r > 0)) txt += ` · redução de ${pct(c.reducao[0])} na CBS e ${pct(c.reducao[1])} no IBS`;
@@ -501,7 +500,7 @@ function calcular(ev) {
     $('resultado').innerHTML = `<div class="caixa erro"><b>Não foi possível calcular.</b><ul>${r.erros.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>`;
     return;
   }
-  const rodape = `<p class="info">CST ${esc(c.cst)} · cClassTrib ${esc(c.codigo)} · ${esc(c.descricao)}<br>${esc($('municipio').selectedOptions[0].text)}/${esc($('uf').value)} · ${entrada.data.split('-').reverse().join('/')}</p>`;
+  const rodape = `<p class="info">CST ${esc(c.cst)} · Classificação ${esc(c.codigo)} · ${esc(c.descricao)}<br>${esc($('municipio').selectedOptions[0].text)}/${esc($('uf').value)} · ${entrada.data.split('-').reverse().join('/')}</p>`;
   if (r.semDestaque) {
     $('resultado').innerHTML = `<div class="total"><div class="rotulo">Tributos sobre ${brl(r.base)}</div><div class="valor">${brl(0)}</div>
       <div class="rotulo">${esc(c.cstDescricao)}: não há destaque de CBS nem de IBS nesta operação.</div><div class="totais" id="totais"></div></div>${rodape}<div id="comparativo"></div>`;
@@ -819,7 +818,6 @@ document.querySelectorAll('.abas button').forEach((b) => b.addEventListener('cli
   consultarCodigo();
 }));
 $('codigo').addEventListener('input', consultarCodigo);
-$('busca').addEventListener('input', renderClasses);
 $('soValidas').addEventListener('change', renderClasses);
 $('classTrib').addEventListener('change', mostrarClasse);
 $('uf').addEventListener('change', preencherMunicipios);
@@ -946,7 +944,6 @@ $('buscaClasse').addEventListener('input', buscarClasse);
 $('classeResultados').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-classe]');
   if (!b) return;
-  $('busca').value = '';
   renderClasses();
   // se a chave estiver ligada e a escolhida não estiver na lista, desliga a chave para poder selecioná-la
   if (![...$('classTrib').options].some((o) => o.value === b.dataset.classe)) { $('soValidas').checked = false; renderClasses(); }
