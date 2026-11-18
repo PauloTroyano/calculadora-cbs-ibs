@@ -132,6 +132,7 @@
         </div>
       </div>
 
+      <div class="rotulo-ajuda rotulo-codigo"><label>Local da operação</label><button type="button" class="link-busca" id="abrirBuscaMunicipio">🔍 Buscar município pelo nome</button></div>
       <div class="linha">
         <div>
           <label for="uf">UF</label>
@@ -198,6 +199,13 @@
     <input id="buscaNome" type="search" placeholder="ex.: arroz, notebook, consulta médica" autocomplete="off">
     <div class="contagem" id="buscaContagem"></div>
     <ul class="resultados" id="buscaResultados"></ul>
+  </div>
+  <div id="ajuda-municipio" hidden>
+    <h2>Buscar município pelo nome</h2>
+    <p>Digite o nome da cidade. Ao clicar no resultado, a UF e o município são preenchidos na calculadora.</p>
+    <input id="buscaMunicipio" type="search" placeholder="ex.: Campinas, Porto Alegre, São José" autocomplete="off">
+    <div class="contagem" id="municipioContagem"></div>
+    <ul class="resultados" id="municipioResultados"></ul>
   </div>
   <div id="ajuda-classificacao" hidden>
     <h2>Classificação tributária (cClassTrib)</h2>
@@ -420,11 +428,11 @@ function montarIndice(t) {
   });
   return indiceNome[t];
 }
-function destacar(texto, palavras) {
+function destacar(texto, palavras, exato = false) {
   // marca os trechos que batem com a busca (comparando sem acento) e só depois escapa o HTML
   const base = semAcento(texto);
   const marcado = new Array(texto.length).fill(false);
-  palavras.map(radical).forEach((p) => { let i = base.indexOf(p); while (i !== -1) { for (let k = i; k < i + p.length; k++) marcado[k] = true; i = base.indexOf(p, i + 1); } });
+  (exato ? palavras : palavras.map(radical)).forEach((p) => { let i = base.indexOf(p); while (i !== -1) { for (let k = i; k < i + p.length; k++) marcado[k] = true; i = base.indexOf(p, i + 1); } });
   let h = '', dentro = false;
   for (let k = 0; k < texto.length; k++) {
     if (marcado[k] !== dentro) { h += marcado[k] ? '<mark>' : '</mark>'; dentro = marcado[k]; }
@@ -491,6 +499,38 @@ $('buscaResultados').addEventListener('click', (e) => {
   $('codigo').value = b.dataset.codigo;
   consultarCodigo();
   ultimoFoco = $('codigo');
+  fecharAjuda();
+});
+
+// ---------- Busca de município por nome ----------
+let indiceMunicipios = null;
+function buscarMunicipio() {
+  if (!indiceMunicipios) {
+    indiceMunicipios = Object.entries(dados.ufs).flatMap(([uf, u]) => u.municipios.map(([c, n]) => ({ c, n, uf, nomeUf: u.nome, txt: semAcento(n) })));
+  }
+  const q = semAcento($('buscaMunicipio').value.trim()).replace(/\s+/g, ' ');
+  const lista = $('municipioResultados');
+  if (q.length < 2) { lista.innerHTML = ''; $('municipioContagem').textContent = 'Digite pelo menos 2 letras.'; return; }
+  // nome igual primeiro, depois os que começam com o texto, depois os que contêm
+  const nota = (m) => (m.txt === q ? 0 : m.txt.startsWith(q) ? 1 : 2);
+  const achados = indiceMunicipios.filter((m) => m.txt.includes(q))
+    .sort((a, b) => nota(a) - nota(b) || a.n.localeCompare(b.n, 'pt-BR') || a.uf.localeCompare(b.uf));
+  const LIMITE = 50;
+  $('municipioContagem').textContent = achados.length
+    ? `${achados.length} município${achados.length > 1 ? 's' : ''}${achados.length > LIMITE ? `, mostrando os ${LIMITE} primeiros.` : '.'}`
+    : 'Nenhum município encontrado.';
+  lista.innerHTML = achados.slice(0, LIMITE).map((m) =>
+    `<li><button type="button" data-uf="${m.uf}" data-municipio="${m.c}"><span class="cod">${m.uf}</span>${destacar(m.n, [q], true)}<span class="cam">${esc(m.nomeUf)} · código IBGE ${m.c}</span></button></li>`).join('');
+}
+$('abrirBuscaMunicipio').addEventListener('click', () => { abrirAjuda('municipio'); buscarMunicipio(); $('buscaMunicipio').focus(); });
+$('buscaMunicipio').addEventListener('input', buscarMunicipio);
+$('municipioResultados').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-municipio]');
+  if (!b) return;
+  $('uf').value = b.dataset.uf;
+  preencherMunicipios();
+  $('municipio').value = b.dataset.municipio;
+  ultimoFoco = $('municipio');
   fecharAjuda();
 });
 
