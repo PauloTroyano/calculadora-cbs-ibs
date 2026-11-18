@@ -76,6 +76,19 @@
   .painel h2 { font-size: 1.1rem; margin: 0 32px 12px 0; }
   .painel h3 { font-size: .95rem; margin: 18px 0 6px; color: var(--destaque); }
   .painel p, .painel li { font-size: .9rem; margin: 6px 0; }
+  .rotulo-codigo { justify-content: space-between; flex-wrap: wrap; margin-top: 14px; }
+  .rotulo-codigo label { margin: 0; }
+  .link-busca { border: 0; background: none; color: var(--destaque); font: 600 .82rem system-ui, sans-serif; cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 2px; }
+  .busca-abas { display: flex; gap: 6px; margin: 10px 0; }
+  .busca-abas button { flex: 1; padding: 7px; border: 1px solid var(--borda); background: var(--bg); color: var(--texto); border-radius: 8px; cursor: pointer; font: inherit; font-size: .85rem; }
+  .busca-abas button[aria-pressed="true"] { background: var(--destaque); color: var(--card); border-color: var(--destaque); font-weight: 600; }
+  .resultados { list-style: none; padding: 0 !important; margin: 10px 0 0 !important; }
+  .resultados li { margin: 0 0 6px; }
+  .resultados button { width: 100%; text-align: left; border: 1px solid var(--borda); border-radius: 8px; background: var(--bg); color: var(--texto); padding: 8px 10px; cursor: pointer; font: inherit; font-size: .85rem; line-height: 1.35; }
+  .resultados button:hover, .resultados button:focus-visible { border-color: var(--destaque); outline: none; }
+  .resultados .cod { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; color: var(--destaque); display: block; }
+  .resultados .cam { color: var(--suave); font-size: .78rem; display: block; margin-top: 2px; }
+  .resultados mark { background: var(--destaque-claro); color: inherit; border-radius: 3px; }
   .painel ul { padding-left: 18px; margin: 6px 0; }
   .painel code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
   .painel .fechar { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border: 1px solid var(--borda); border-radius: 8px; background: var(--bg); color: var(--texto); font-size: 1.1rem; cursor: pointer; }
@@ -97,7 +110,7 @@
         <button type="button" data-tipo="nbs" aria-pressed="false">Serviços - NBS</button>
       </div>
 
-      <label for="codigo"><span id="rotuloCodigo">Código NCM</span> <span class="dica">(só números)</span></label>
+      <div class="rotulo-ajuda rotulo-codigo"><label for="codigo"><span id="rotuloCodigo">Código NCM</span> <span class="dica">(só números)</span></label><button type="button" class="link-busca" id="abrirBuscaNome">🔍 Não sabe o código? Buscar por nome</button></div>
       <input id="codigo" inputmode="numeric" placeholder="ex.: 84713012" required>
       <div class="info" id="infoCodigo"></div>
 
@@ -174,6 +187,17 @@
     <h3>Por que isso importa</h3>
     <p>A calculadora cruza o código com a <b>classificação tributária</b>. Muitas reduções só valem para itens listados nos anexos da LC 214/2025. Por exemplo, a redução de 100% da cesta básica vale só para os alimentos do Anexo I. Se o código não estiver no anexo, a página avisa.</p>
     <p>Não sabe o código? Ele costuma estar no cadastro do produto no seu sistema ou na nota do fornecedor.</p>
+  </div>
+  <div id="ajuda-busca" hidden>
+    <h2>Buscar produto ou serviço por nome</h2>
+    <p>Digite o nome do que está sendo vendido. Clique no resultado para usar o código na calculadora.</p>
+    <div class="busca-abas" role="group">
+      <button type="button" data-busca="ncm" aria-pressed="true">Produtos - NCM</button>
+      <button type="button" data-busca="nbs" aria-pressed="false">Serviços - NBS</button>
+    </div>
+    <input id="buscaNome" type="search" placeholder="ex.: arroz, notebook, consulta médica" autocomplete="off">
+    <div class="contagem" id="buscaContagem"></div>
+    <ul class="resultados" id="buscaResultados"></ul>
   </div>
   <div id="ajuda-classificacao" hidden>
     <h2>Classificação tributária (cClassTrib)</h2>
@@ -382,6 +406,93 @@ $('classTrib').addEventListener('change', mostrarClasse);
 $('uf').addEventListener('change', preencherMunicipios);
 $('data').addEventListener('change', () => { verificarReferencia(); consultarCodigo(); });
 $('form').addEventListener('submit', calcular);
+
+// ---------- Busca de NCM/NBS por nome ----------
+const indiceNome = {};
+let tipoBusca = 'ncm';
+function montarIndice(t) {
+  if (indiceNome[t]) return indiceNome[t];
+  const tam = t === 'ncm' ? 8 : 9;
+  indiceNome[t] = Object.keys(dados[t]).filter((c) => c.length === tam).map((c) => {
+    const proprio = dados[t][c].replace(/^[-\s]+/, '');
+    const caminho = Calc.descrever(dados[t], t, c);
+    return { c, proprio, caminho, txtProprio: semAcento(proprio), txt: semAcento(caminho) };
+  });
+  return indiceNome[t];
+}
+function destacar(texto, palavras) {
+  // marca os trechos que batem com a busca (comparando sem acento) e só depois escapa o HTML
+  const base = semAcento(texto);
+  const marcado = new Array(texto.length).fill(false);
+  palavras.map(radical).forEach((p) => { let i = base.indexOf(p); while (i !== -1) { for (let k = i; k < i + p.length; k++) marcado[k] = true; i = base.indexOf(p, i + 1); } });
+  let h = '', dentro = false;
+  for (let k = 0; k < texto.length; k++) {
+    if (marcado[k] !== dentro) { h += marcado[k] ? '<mark>' : '</mark>'; dentro = marcado[k]; }
+    h += esc(texto[k]);
+  }
+  return h + (dentro ? '</mark>' : '');
+}
+// Nomes populares que não aparecem no texto oficial da NCM → prefixos de código
+const SINONIMOS = {
+  notebook: ['847130'], laptop: ['847130'], computador: ['8471'], pc: ['8471'],
+  celular: ['85171'], smartphone: ['85171'], telefone: ['8517'],
+  geladeira: ['84182'], freezer: ['8418'], televisao: ['85287'], tv: ['85287'],
+  refrigerante: ['2202'], cafe: ['0901'], leite: ['0401', '0402'], cigarro: ['2402'],
+  gasolina: ['2710125'], feijao: ['07133'], camiseta: ['6109'], sapato: ['64'], tenis: ['64'],
+  carro: ['8703'], automovel: ['8703'], moto: ['8711'], remedio: ['3003', '3004'], medicamento: ['3003', '3004'],
+  perfume: ['3303'], pao: ['1905'], bolacha: ['1905'], biscoito: ['1905'],
+};
+// Aceita plural e variações simples: "portatil" acha "portáteis", "medico" acha "médicos"
+const radical = (p) => (p.length >= 6 ? p.slice(0, p.length - 2) : p);
+function bate(x, p) {
+  return x.txt.includes(p) || x.txt.includes(radical(p)) || x.c.startsWith(p) || (SINONIMOS[p] || []).some((pre) => x.c.startsWith(pre));
+}
+// Nota de relevância: nome popular (sinônimo) vale mais; palavra no nome do próprio item vem depois
+function relevancia(x, p) {
+  if ((SINONIMOS[p] || []).some((pre) => x.c.startsWith(pre))) return 3;
+  if (x.txtProprio.includes(p)) return 2;
+  return x.txtProprio.includes(radical(p)) ? 1 : 0;
+}
+
+function buscarPorNome() {
+  const q = semAcento($('buscaNome').value.trim());
+  const palavras = q.split(/\s+/).filter((p) => p.length >= 2);
+  const lista = $('buscaResultados');
+  if (!palavras.length) { lista.innerHTML = ''; $('buscaContagem').textContent = 'Digite pelo menos 2 letras.'; return; }
+  const achados = montarIndice(tipoBusca)
+    .filter((x) => palavras.every((p) => bate(x, p)))
+    // primeiro os que têm as palavras na descrição do próprio item, depois os que só têm no grupo
+    .map((x) => ({ x, nota: palavras.reduce((t, p) => t + relevancia(x, p), 0) }))
+    .sort((a, b) => b.nota - a.nota || a.x.c.localeCompare(b.x.c));
+  const LIMITE = 60;
+  $('buscaContagem').textContent = achados.length
+    ? `${achados.length} resultado${achados.length > 1 ? 's' : ''}${achados.length > LIMITE ? `, mostrando os ${LIMITE} primeiros. Refine a busca com mais palavras.` : '.'}`
+    : `Nada encontrado. Tente outra palavra ou veja em ${tipoBusca === 'ncm' ? 'Serviços - NBS' : 'Produtos - NCM'}.`;
+  lista.innerHTML = achados.slice(0, LIMITE).map(({ x }) =>
+    `<li><button type="button" data-codigo="${x.c}"><span class="cod">${x.c}</span>${destacar(x.proprio, palavras)}<span class="cam">${destacar(x.caminho, palavras)}</span></button></li>`).join('');
+}
+function trocarTipoBusca(t) {
+  tipoBusca = t;
+  document.querySelectorAll('.busca-abas button').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.busca === t)));
+  $('buscaNome').placeholder = t === 'ncm' ? 'ex.: arroz, notebook, cerveja' : 'ex.: educação, consulta médica, transporte';
+  buscarPorNome();
+}
+$('abrirBuscaNome').addEventListener('click', () => {
+  abrirAjuda('busca');
+  trocarTipoBusca(tipo);
+  $('buscaNome').focus();
+});
+document.querySelectorAll('.busca-abas button').forEach((b) => b.addEventListener('click', () => trocarTipoBusca(b.dataset.busca)));
+$('buscaNome').addEventListener('input', buscarPorNome);
+$('buscaResultados').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-codigo]');
+  if (!b) return;
+  if (tipoBusca !== tipo) document.querySelector(`.abas button[data-tipo="${tipoBusca}"]`).click();
+  $('codigo').value = b.dataset.codigo;
+  consultarCodigo();
+  ultimoFoco = $('codigo');
+  fecharAjuda();
+});
 
 // ---------- Painel de ajuda ----------
 let ultimoFoco = null;
