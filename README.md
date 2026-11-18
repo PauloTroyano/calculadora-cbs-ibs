@@ -28,7 +28,7 @@ As alíquotas atuais ficam em `dados/impostos-atuais.json` e podem ser ajustadas
   Não considera benefícios, substituição tributária nem alíquotas específicas por produto.
 - **PIS/Cofins:** 9,25% no regime não cumulativo (Leis 10.637/2002 e 10.833/2003) ou 3,65% no cumulativo (Lei 9.718/1998),
   com o ICMS fora da base (STF, Tema 69). Para alimentos do Anexo I (cesta básica), a tela já começa com alíquota zero (Lei 10.925/2004).
-- **IPI:** informado pelo usuário (consulte a [TIPI](https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/legislacao/documentos-e-arquivos/tipi)).
+- **IPI:** preenchido pelo NCM a partir da [TIPI oficial em PDF](https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/legislacao/documentos-e-arquivos/tipi.pdf), baixada e convertida pela rotina diária (`ferramentas/tipi.py` → `dados/tipi.json`). É estimativa: só vale para indústria e importador e não considera os "Ex" da TIPI. Se a leitura falhar, a versão anterior é mantida.
 - **ISS:** 5% por padrão, ajustável entre 2% e 5% (LC 116/2003 e LC 157/2016).
 - **CBS/IBS plenos:** 26,5% (CBS 8,8% + IBS 17,7%), teto de referência da LC 214/2025. A Resolução CGIBS nº 14/2026 projetou 27,91% para 2027.
 
