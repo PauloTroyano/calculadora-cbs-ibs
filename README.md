@@ -34,6 +34,15 @@ As alíquotas atuais ficam em `dados/impostos-atuais.json` e podem ser ajustadas
 
 Não considera créditos de etapas anteriores nem o Simples Nacional.
 
+## Comparativo no Simples Nacional (estimativa)
+
+Um segundo cartão, também recolhido, compara o DAS de hoje com as duas opções da reforma para o optante pelo Simples:
+
+- **CBS/IBS dentro do DAS**: o total do DAS continua igual; a CBS ocupa o lugar do PIS/Cofins e o IBS o do ICMS/ISS. O cliente só credita o que foi pago de CBS/IBS no DAS.
+- **CBS/IBS por fora (regime regular, art. 41, §3º da LC 214/2025)**: o DAS perde as parcelas de PIS/Cofins e ICMS/ISS, e a CBS/IBS é paga com as alíquotas plenas (com as reduções da classificação), descontado o crédito das compras informado. O cliente credita a CBS/IBS cheia.
+
+O DAS usa as tabelas dos Anexos I a V da LC 123/2006 (redação da LC 155/2016) em `dados/simples-nacional.json`: alíquota efetiva pela receita dos últimos 12 meses, repartição por tributo, limite de 5% do ISS com repasse do excedente aos tributos federais e ICMS/ISS fora do DAS acima do sublimite de R$ 3,6 milhões. A calculadora oficial do Simples (ReceitaFederal/calculadora-rtc-simples-nacional) recebe as alíquotas do DAS já prontas, por isso as tabelas da LC 123 são aplicadas aqui.
+
 ## O que ainda não calcula
 
 - Imposto Seletivo, monofasia de combustíveis, alíquotas fixas/setoriais específicas e classificações que exigem dados extras da operação.

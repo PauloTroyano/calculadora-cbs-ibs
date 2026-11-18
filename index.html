@@ -22,7 +22,8 @@
   h1 { font-size: 1.5rem; margin: 0 0 4px; }
   .sub { color: var(--suave); margin: 0 0 20px; }
   .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
-  @media (max-width: 760px) { .grade { grid-template-columns: 1fr; } }
+  .grade > * { min-width: 0; }
+  @media (max-width: 760px) { .grade { grid-template-columns: minmax(0, 1fr); } .card { padding: 16px 14px; } }
   .card { background: var(--card); border: 1px solid var(--borda); border-radius: 12px; padding: 20px; }
   label { display: block; font-weight: 600; font-size: .85rem; margin: 14px 0 4px; }
   label:first-child { margin-top: 0; }
@@ -50,6 +51,7 @@
   th, td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--borda); }
   th:first-child, td:first-child { text-align: left; }
   th { font-size: .78rem; color: var(--suave); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  @media (max-width: 480px) { th, td { padding: 7px 3px; font-size: .82rem; } th { font-size: .66rem; letter-spacing: 0; } }
   tfoot td { font-weight: 700; border-bottom: 0; }
   details { margin-top: 14px; font-size: .85rem; }
   summary { cursor: pointer; color: var(--suave); }
@@ -59,6 +61,7 @@
   .tag { display:inline-block; font-size:.72rem; padding:1px 6px; border-radius:6px; background: var(--aviso-claro); color: var(--aviso); margin-left:4px; }
   footer a { color: inherit; }
   #comparativo { margin-top: 18px; border-top: 1px solid var(--borda); padding-top: 14px; }
+  #compSn { margin-top: 10px; }
   .comp-titulo { font-size: 1rem; font-weight: 700; display: block; }
   .comp-det > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--bg); }
   .comp-det > summary::-webkit-details-marker { display: none; }
@@ -276,6 +279,7 @@ async function carregar() {
   nomes.forEach((n, i) => { dados[n] = jsons[i]; });
   // TIPI (IPI por NCM) é opcional: se não carregar, o campo de IPI fica manual
   dados.tipi = await fetch('dados/tipi.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
+  dados.simples = await fetch('dados/simples-nacional.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
   classes = dados.classes;
   const br = (d) => (d ? d.split('-').reverse().join('/') : '—');
   const m = dados.meta;
@@ -479,12 +483,24 @@ function iniciarComparativo(entrada, classe, r) {
       </select></div>
     </div>
     <div id="compTabela"></div>
-   </details>`;
+   </details>
+   <div id="compSn"></div>`;
   $('compDet').addEventListener('toggle', () => { compAberto = $('compDet').open; });
   // Alimentos do Anexo I (cesta básica) hoje costumam ter PIS/Cofins zero (Lei 10.925/2004)
   if (classe.codigo === '200003') $('cPis').value = 'zero';
-  $('comparativo').querySelectorAll('input, select').forEach((el) => el.addEventListener('input', atualizarComparativo));
+  $('compDet').querySelectorAll('input, select').forEach((el) => el.addEventListener('input', () => { atualizarComparativo(); if (dados.simples) atualizarSimples(); }));
   atualizarComparativo();
+  iniciarSimples();
+}
+
+// CBS + IBS com as alíquotas plenas (2033), aplicando as reduções da classificação
+function cbsIbsPleno(classe, valor) {
+  const rp = dados['impostos-atuais'].reformaPlena;
+  if (!classe.destacaCbsIbs || classe.diferimento || classe.aliquotaZero) return { cbs: 0, ibs: 0, total: 0 };
+  const base = valor * (classe.fatorBase ?? 1);
+  const cbs = base * rp.cbs * (1 - classe.reducao[0] / 100) / 100;
+  const ibs = base * rp.ibs * (1 - classe.reducao[1] / 100) / 100;
+  return { cbs, ibs, total: cbs + ibs };
 }
 
 function atualizarComparativo() {
@@ -514,13 +530,7 @@ function atualizarComparativo() {
   // Reforma: o cálculo do ano da operação e a estimativa com as alíquotas plenas
   const cargaAno = r.total / valor * 100;
   const rp = at.reformaPlena;
-  let plena = 0;
-  if (classe.destacaCbsIbs) {
-    const base = valor * (classe.fatorBase ?? 1);
-    const z = classe.aliquotaZero ? 0 : 1;
-    plena = base * z * (rp.cbs * (1 - classe.reducao[0] / 100) + rp.ibs * (1 - classe.reducao[1] / 100)) / 100;
-    if (classe.diferimento) plena = 0;
-  }
+  const plena = cbsIbsPleno(classe, valor).total;
   const cargaPlena = plena / valor * 100;
   const dif = cargaPlena - cargaAtual;
   const ano = Number(entrada.data.slice(0, 4));
@@ -544,6 +554,152 @@ function atualizarComparativo() {
     <details><summary>Fontes e premissas</summary>
       <p>${esc(at.icmsInterno.fonte)}</p>${dados.tipi ? `<p>IPI: ${esc(dados.tipi.fonte)}, lida em ${dados.tipi.dataLeitura.split('-').reverse().join('/')}. Estimativa: o IPI só é cobrado na saída da indústria ou do importador, e algumas NCMs têm exceções (Ex) não consideradas.</p>` : ''}<p>${esc(at.pisCofins.fonte)}</p><p>${esc(at.iss.fonte)}</p><p>${esc(at.reformaPlena.fonte)}</p>
       <p>Não considera créditos de etapas anteriores, que existem no regime atual não cumulativo e na reforma. ${esc(at.observacao)}</p>
+    </details>`;
+}
+
+// ---------- Comparativo no Simples Nacional (estimativa) ----------
+let snAberto = false;
+let snAnexo = null; // lembra a escolha da pessoa
+let snRbt = '360.000';
+let snCompras = '0';
+
+// DAS pelas tabelas da LC 123: alíquota efetiva e quanto dela é de cada tributo
+function calcularDas(sn, anexo, rbt12, aliqLocal) {
+  const t = sn.anexos[anexo];
+  const faixa = sn.limites.findIndex((l) => rbt12 <= l);
+  if (faixa < 0) return { erro: `Receita acima de ${brl(sn.limites[sn.limites.length - 1])}: a empresa sai do Simples Nacional.` };
+  const efetiva = faixa === 0 ? t.nominal[0] : (rbt12 * t.nominal[faixa] / 100 - t.deduzir[faixa]) / rbt12 * 100;
+  const rep = t.reparticao[faixa];
+  const parte = {};
+  for (const [trib, p] of Object.entries(rep)) parte[trib] = efetiva * p / 100;
+  // ISS limitado a 5% efetivos; o excesso vai para os tributos federais, na proporção deles
+  let excessoIss = 0;
+  if (parte.ISS > sn.issMaximo) {
+    excessoIss = parte.ISS - sn.issMaximo;
+    parte.ISS = sn.issMaximo;
+    const federais = Object.keys(parte).filter((k) => k !== 'ISS');
+    const soma = federais.reduce((s2, k) => s2 + rep[k], 0);
+    federais.forEach((k) => { parte[k] += excessoIss * rep[k] / soma; });
+  }
+  // Acima do sublimite (6ª faixa), ICMS/ISS saem do DAS e são pagos pelas regras normais
+  const local = anexo === 'I' || anexo === 'II' ? 'ICMS' : 'ISS';
+  const foraDoDas = faixa === 5 ? aliqLocal : 0;
+  return { faixa, efetiva, parte, excessoIss, local, foraDoDas };
+}
+
+function iniciarSimples() {
+  const alvo = $('compSn');
+  const sn = dados.simples;
+  if (!alvo || !sn) return;
+  const { entrada } = ctxComp;
+  const servico = entrada.tipo === 'nbs';
+  const anexo = snAnexo || (servico ? 'III' : 'I');
+  alvo.innerHTML = `
+   <details class="comp-det" id="snDet" ${snAberto ? 'open' : ''}>
+    <summary>
+      <span class="comp-titulo">Comparativo no Simples Nacional <span class="tag">estimativa</span></span>
+      <span class="comp-resumo" id="snResumo"></span>
+      <span class="comp-abrir" aria-hidden="true"></span>
+    </summary>
+    <p class="info">Para empresa optante pelo Simples: compara o DAS de hoje com as duas opções da reforma a partir de 2027, que são continuar com a CBS/IBS <b>dentro do DAS</b> ou recolher a CBS/IBS <b>por fora</b>, no regime regular, ficando o resto no DAS.</p>
+    <div class="comp-campos">
+      <div><label for="snAnexo">Atividade (anexo)</label><select id="snAnexo">
+        ${Object.entries(sn.anexos).map(([k, a]) => `<option value="${k}" ${k === anexo ? 'selected' : ''}>${esc(a.nome)}</option>`).join('')}
+      </select></div>
+      <div><label for="snRbt">Receita dos últimos 12 meses (R$)</label><input id="snRbt" inputmode="decimal" value="${esc(snRbt)}"><div class="dica" id="snFaixa"></div></div>
+      <div><label for="snCompras">Compras com crédito (% do preço)</label><input id="snCompras" inputmode="decimal" value="${esc(snCompras)}"><div class="dica">só conta na opção por fora</div></div>
+    </div>
+    <div id="snTabela"></div>
+   </details>`;
+  $('snDet').addEventListener('toggle', () => { snAberto = $('snDet').open; });
+  $('snAnexo').addEventListener('change', () => { snAnexo = $('snAnexo').value; atualizarSimples(); });
+  $('snRbt').addEventListener('input', () => { snRbt = $('snRbt').value; atualizarSimples(); });
+  $('snCompras').addEventListener('input', () => { snCompras = $('snCompras').value; atualizarSimples(); });
+  atualizarSimples();
+}
+
+function atualizarSimples() {
+  const sn = dados.simples;
+  const { entrada, classe } = ctxComp;
+  const at = dados['impostos-atuais'];
+  const valor = entrada.valor;
+  const anexo = $('snAnexo').value;
+  const rbt12 = num($('snRbt').value);
+  const compras = Math.min(Math.max(num($('snCompras').value) || 0, 0), 100);
+  const lerPct = (id, padrao) => { const el = $(id); const v = el ? num(el.value) : padrao; return Number.isFinite(v) && v >= 0 ? v : padrao; };
+  const aliqLocal = anexo === 'I' || anexo === 'II' ? lerPct('cIcms', at.icmsInterno.aliquotas[$('uf').value] ?? 18) : lerPct('cIss', at.iss.padrao);
+  if (!(rbt12 > 0)) {
+    $('snResumo').textContent = 'Informe a receita dos últimos 12 meses.';
+    $('snFaixa').textContent = ''; $('snTabela').innerHTML = '';
+    return;
+  }
+  const d = calcularDas(sn, anexo, rbt12, aliqLocal);
+  if (d.erro) {
+    $('snResumo').textContent = d.erro; $('snFaixa').textContent = ''; $('snTabela').innerHTML = '';
+    return;
+  }
+  const t = sn.anexos[anexo];
+  const p2 = (x) => pct(x.toFixed(2));
+  $('snFaixa').textContent = `${d.faixa + 1}ª faixa · nominal ${pct(t.nominal[d.faixa])} · efetiva ${p2(d.efetiva)}`;
+
+  // Hoje
+  const vDas = valor * d.efetiva / 100;
+  const vFora = valor * d.foraDoDas / 100;
+  const hoje = vDas + vFora;
+  // Partes do DAS que viram CBS/IBS na reforma
+  const pCbsDas = (d.parte.PIS || 0) + (d.parte.Cofins || 0);
+  const pIbsDas = (d.parte.ICMS || 0) + (d.parte.ISS || 0);
+  const plena = cbsIbsPleno(classe, valor);
+  const rp = at.reformaPlena;
+
+  // Opção 1: CBS/IBS dentro do DAS (total do DAS igual); na 6ª faixa o IBS fica fora, como o ICMS/ISS hoje
+  const vCbsDentro = valor * pCbsDas / 100;
+  const vIbsDentro = d.faixa === 5 ? plena.ibs : valor * pIbsDas / 100;
+  const dentro = vDas + (d.faixa === 5 ? plena.ibs : 0);
+  const creditoDentro = vCbsDentro + vIbsDentro;
+
+  // Opção 2: CBS/IBS por fora, no regime regular, com crédito das compras
+  const dasSemCbsIbs = valor * (d.efetiva - pCbsDas - pIbsDas) / 100;
+  const creditoCompras = valor * compras / 100 * (rp.cbs + rp.ibs) / 100;
+  const cbsIbsFora = Math.max(plena.total - creditoCompras, 0);
+  const fora = dasSemCbsIbs + cbsIbsFora;
+
+  const c = (v) => v / valor * 100;
+  const menor = Math.abs(dentro - fora) < 0.005 ? null : dentro < fora ? 'dentro' : 'fora';
+  $('snResumo').innerHTML = `DAS hoje <b>${p2(c(hoje))}</b> (${brl(hoje)}) → reforma plena: dentro do DAS <b>${p2(c(dentro))}</b> · por fora <b>${p2(c(fora))}</b>
+    ${menor ? `<span class="comp-dif cai">menor: ${menor === 'dentro' ? 'dentro do DAS' : 'por fora'}</span>` : ''}`;
+
+  const outros = Object.entries(d.parte).filter(([k]) => !['PIS', 'Cofins', 'ICMS', 'ISS'].includes(k));
+  const ano = Number(entrada.data.slice(0, 4));
+  $('snTabela').innerHTML = `
+    <table class="comp">
+      <thead><tr><th>Cenário</th><th>Carga</th><th>Valor</th></tr></thead>
+      <tbody>
+        <tr class="grupo"><td>Simples hoje · DAS ${esc(t.nome.split(' · ')[0])}</td><td>${p2(c(hoje))}</td><td>${brl(hoje)}</td></tr>
+        <tr class="sub"><td>PIS/Cofins no DAS · ${p2(pCbsDas)}</td><td></td><td>${brl(vCbsDentro)}</td></tr>
+        ${d.faixa === 5
+          ? `<tr class="sub"><td>${d.local} por fora do DAS (acima de ${brl(sn.sublimite)}) · ${pct(d.foraDoDas)}</td><td></td><td>${brl(vFora)}</td></tr>`
+          : `<tr class="sub"><td>${d.local} no DAS · ${p2(pIbsDas)}</td><td></td><td>${brl(valor * pIbsDas / 100)}</td></tr>`}
+        <tr class="sub"><td>Demais (${outros.map(([k]) => k).join(', ')}) · ${p2(outros.reduce((s2, [, v]) => s2 + v, 0))}</td><td></td><td>${brl(dasSemCbsIbs)}</td></tr>
+        <tr class="grupo"><td>Reforma · CBS/IBS dentro do DAS</td><td>${p2(c(dentro))}</td><td>${brl(dentro)}</td></tr>
+        <tr class="sub"><td>Cliente pode creditar só o que foi pago de CBS/IBS no DAS</td><td></td><td>${brl(creditoDentro)}</td></tr>
+        <tr class="grupo"><td>Reforma · CBS/IBS por fora (regime regular)</td><td>${p2(c(fora))}</td><td>${brl(fora)}</td></tr>
+        <tr class="sub"><td>DAS sem PIS/Cofins e ${d.local}</td><td></td><td>${brl(dasSemCbsIbs)}</td></tr>
+        <tr class="sub"><td>CBS + IBS plenos${classe.reducao.some((x) => x > 0) ? ' com a redução da classificação' : ''}</td><td></td><td>${brl(plena.total)}</td></tr>
+        ${creditoCompras ? `<tr class="sub"><td>− crédito das compras (${pct(compras)} do preço × ${pct(rp.cbs + rp.ibs)})</td><td></td><td>−${brl(Math.min(creditoCompras, plena.total))}</td></tr>` : ''}
+        <tr class="sub"><td>Cliente pode creditar a CBS/IBS cheia</td><td></td><td>${brl(plena.total)}</td></tr>
+      </tbody>
+    </table>
+    <div class="caixa ${menor === 'fora' ? 'ok-caixa' : 'aviso'}">${menor === null ? 'As duas opções dão a mesma carga.' : menor === 'dentro'
+      ? `Ficar <b>dentro do DAS</b> custa ${brl(fora - dentro)} a menos nesta venda. Por fora vale a pena quando o cliente é empresa que aproveita crédito (ele credita ${brl(plena.total)} em vez de ${brl(creditoDentro)}) ou quando há muitas compras com crédito.`
+      : `Recolher <b>por fora</b> custa ${brl(dentro - fora)} a menos nesta venda e ainda dá crédito cheio ao cliente.`}</div>
+    ${compras === 0 ? '<p class="info">Na opção por fora a empresa também credita a CBS/IBS das compras. Informe em "Compras com crédito" quanto do preço de venda são compras de fornecedores do regime regular (mercadoria para revenda, insumos, serviços), para uma comparação mais justa.</p>' : ''}
+    ${ano < 2033 ? '<p class="info">Na transição, a CBS entra no lugar do PIS/Cofins em 2027 e o IBS substitui o ICMS/ISS aos poucos de 2029 a 2032. Em 2026 nada muda para o Simples. A tabela mostra a situação plena, de 2033.</p>' : ''}
+    ${t.nota ? `<p class="info">${esc(t.nota)}</p>` : ''}
+    <details><summary>Fontes e premissas</summary>
+      <p>${esc(sn.fonte)}</p><p>${esc(sn.reforma)}</p>
+      <p>Alíquota efetiva = (receita 12 meses × alíquota nominal − parcela a deduzir) ÷ receita 12 meses. ${d.excessoIss ? `O ISS foi limitado a ${pct(sn.issMaximo)} e o excedente (${p2(d.excessoIss)}) foi repassado aos tributos federais, como manda a LC 123.` : `O ISS dentro do DAS é limitado a ${pct(sn.issMaximo)}.`}</p>
+      <p>Premissas: o total do DAS continua o mesmo na reforma; dentro do DAS não se aplicam as reduções da classificação; o crédito das compras usa a alíquota cheia de ${pct(rp.cbs + rp.ibs)}; o IPI do Anexo II segue no DAS. A calculadora oficial do Simples da Receita (calculadora-rtc-simples-nacional) recebe as alíquotas do DAS já prontas e por isso não foi usada nesta conta.</p>
     </details>`;
 }
 
