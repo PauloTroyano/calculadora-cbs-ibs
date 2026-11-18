@@ -186,7 +186,8 @@
       <li><code>510</code> diferimento</li>
     </ul>
     <p><b>Busca:</b> digite partes do nome em qualquer ordem, por exemplo "serviço saúde" ou "alimentação humana".</p>
-    <p><b>Chave "Mostrar só as que valem":</b> depois de digitar o NCM ou NBS completo, ligue a chave para ver só as classificações que podem ser usadas com aquele código. As marcadas com ★ são específicas do anexo da LC 214/2025 que inclui o seu código, e costumam ser as que trazem redução.</p>
+    <p><b>Chave "Mostrar só as que valem":</b> depois de digitar o NCM ou NBS completo, ligue a chave para ver só as classificações que podem ser usadas com aquele código. </p>
+    <p><b>Estrelas (★):</b> com o código digitado, as sugestões sobem para o topo da lista. "Benefício da lei" são as classificações do anexo da LC 214/2025 que inclui o seu código, como a cesta básica para o arroz. "Padrão, mais comum" é a <code>000001</code>, tributação integral, usada quando o item não tem benefício. É o caso de um notebook.</p>
     <p>Na dúvida, comece por <code>000001</code> (tributação integral). Depois use a busca para procurar o seu setor, por exemplo "saúde", "alimentação" ou "transporte".</p>
     <p>Itens marcados com "(não calculada)" usam regras especiais que esta página ainda não calcula.</p>
   </div>
@@ -246,6 +247,9 @@ function atualizarChave() {
   $('rotuloValidas').textContent = cod ? `Mostrar só as que valem para ${tipo.toUpperCase()} ${cod}` : `Mostrar só as que valem para este código (digite o ${tipo.toUpperCase()} completo)`;
 }
 
+const PADRAO = '000001';
+let ultimoCodigo = null;
+
 function renderClasses() {
   atualizarChave();
   // Busca por nome: todas as palavras precisam aparecer (em qualquer ordem, sem acento)
@@ -259,17 +263,28 @@ function renderClasses() {
       const texto = semAcento(`${c.codigo} ${c.descricao} ${c.cstDescricao} ${c.tratamento || ''}`);
       return palavras.every((p) => texto.includes(p));
     });
-  // Com a chave ligada, as específicas do anexo para esse código vêm primeiro
-  if (filtrar) lista.sort((a, b) => (b.v.especifica ? 1 : 0) - (a.v.especifica ? 1 : 0));
-  $('classTrib').innerHTML = lista.map(({ c, v }) => {
-    return `<option value="${c.codigo}" title="${esc(c.descricao)}" ${c.suportado ? '' : 'class="nao"'}>${v.especifica ? '★ ' : ''}${c.codigo} · ${esc(c.descricao)}${c.suportado ? '' : ' (não calculada)'}</option>`;
+  // Com o código digitado, as sugestões vêm no topo, com estrela:
+  // 1) as específicas do anexo da LC 214/2025 que inclui o código (benefício da lei);
+  // 2) a 000001, tributação integral, que é a regra padrão e a mais comum quando não há benefício.
+  const peso = ({ c, v }) => (v.especifica ? 2 : (cod && c.codigo === PADRAO ? 1 : 0));
+  if (cod) lista.sort((a, b) => peso(b) - peso(a));
+  $('classTrib').innerHTML = lista.map((item) => {
+    const { c } = item;
+    const rotulo = peso(item) === 2 ? ' — benefício da lei' : peso(item) === 1 ? ' — padrão, mais comum' : '';
+    return `<option value="${c.codigo}" title="${esc(c.descricao)}" ${c.suportado ? '' : 'class="nao"'}>${peso(item) ? '★ ' : ''}${c.codigo} · ${esc(c.descricao)}${rotulo}${c.suportado ? '' : ' (não calculada)'}</option>`;
   }).join('');
-  if (lista.some(({ c }) => c.codigo === atual)) $('classTrib').value = atual;
+  // Ao trocar de código, já deixa selecionada a primeira sugestão
+  const mudouCodigo = cod !== ultimoCodigo;
+  ultimoCodigo = cod;
+  if (!mudouCodigo && lista.some(({ c }) => c.codigo === atual)) $('classTrib').value = atual;
   else if (lista.length) $('classTrib').value = lista[0].c.codigo;
   const especificas = lista.filter(({ v }) => v.especifica).length;
   $('contagem').textContent = !lista.length
     ? (filtrar ? 'Nenhuma classificação válida para este código com essa busca.' : 'Nenhuma classificação encontrada para essa busca.')
-    : `${lista.length} de ${classes.length} classificações` + (filtrar ? ` valem para este código${especificas ? `, ${especificas} específica${especificas > 1 ? 's' : ''} do anexo (★)` : ''}.` : '.');
+    : `${lista.length} de ${classes.length} classificações` + (filtrar ? ' valem para este código.' : '.')
+      + (cod ? (especificas
+        ? ` ★ no topo: ${especificas} com benefício da lei para este código e a 000001 (padrão).`
+        : ' Este código não tem benefício específico na lei: o mais comum é a ★ 000001, tributação integral.') : '');
   mostrarClasse();
 }
 
