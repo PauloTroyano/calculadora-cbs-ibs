@@ -141,6 +141,7 @@
   .selecionada:empty, #infoCodigo:empty { display: none; }
   .selecionada span { display: block; font-size: .72rem; color: var(--suave); text-transform: uppercase; letter-spacing: .03em; }
   .selecionada b { color: var(--destaque); margin-right: 4px; }
+  footer p { margin: 2px 0; }
   footer { margin-top: 24px; font-size: .8rem; color: var(--suave); }
 </style>
 </head>
@@ -220,7 +221,8 @@
   </nav>
 
   <footer>
-    <p>Protótipo, não substitui orientação contábil. Regras e tabelas: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">calculadora oficial da Receita Federal</a>, <span id="versao"></span>. O cálculo foi conferido contra a API oficial.</p>
+    <p>Calculadora não substitui orientação contábil.</p>
+    <p>Regras: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">calculadora oficial da Receita Federal</a>.</p>
     <p id="atualizacao"></p>
   </footer>
 </main>
@@ -378,9 +380,8 @@ async function carregar() {
   classes = dados.classes;
   const br = (d) => (d ? d.split('-').reverse().join('/') : '—');
   const m = dados.meta;
-  $('versao').textContent = `base ${m.versaoBase} de ${br(m.dataVersaoBase)}`;
   // Data e hora da última execução do robô diário (que confere e atualiza as tabelas)
-  $('atualizacao').textContent = `Tabelas atualizadas em ${br(m.ultimaVerificacao || m.dataAtualizacao || m.dataExportacao)}${m.horaVerificacao ? ` às ${m.horaVerificacao}` : ''}.`;
+  $('atualizacao').textContent = `Atualizadas em ${br(m.ultimaVerificacao || m.dataAtualizacao || m.dataExportacao)}${m.horaVerificacao ? ` às ${m.horaVerificacao}` : ''}`;
 }
 
 function preencherUfs() {
