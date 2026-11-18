@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Calculadora CBS/IBS simplificada</title>
+<meta name="description" content="Calculadora simplificada de CBS e IBS da Reforma Tributária, com as regras e tabelas oficiais da Receita Federal.">
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --texto: #1c2430; --suave: #5b6675; --borda: #dde2e8;
+    --destaque: #0b6e4f; --destaque-claro: #e3f3ec; --erro: #b42318; --erro-claro: #fdecea; --aviso: #8a5a00; --aviso-claro: #fff4dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11151b; --card: #1a2029; --texto: #e6eaf0; --suave: #9aa5b4; --borda: #2c3542;
+      --destaque: #3ecf96; --destaque-claro: #173a2e; --erro: #ff8a80; --erro-claro: #3a1d1b; --aviso: #ffcc66; --aviso-claro: #3a2f17;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--texto); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  .sub { color: var(--suave); margin: 0 0 20px; }
+  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start; }
+  @media (max-width: 760px) { .grade { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--borda); border-radius: 12px; padding: 20px; }
+  label { display: block; font-weight: 600; font-size: .85rem; margin: 14px 0 4px; }
+  label:first-child { margin-top: 0; }
+  .dica { font-weight: 400; color: var(--suave); }
+  input, select { width: 100%; padding: 9px 10px; border: 1px solid var(--borda); border-radius: 8px; background: var(--bg); color: var(--texto); font: inherit; }
+  input:focus, select:focus { outline: 2px solid var(--destaque); outline-offset: -1px; }
+  .linha { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .linha3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .abas { display: flex; gap: 6px; }
+  .abas button { flex: 1; padding: 8px; border: 1px solid var(--borda); background: var(--bg); color: var(--texto); border-radius: 8px; cursor: pointer; font: inherit; }
+  .abas button[aria-pressed="true"] { background: var(--destaque); color: var(--card); border-color: var(--destaque); font-weight: 600; }
+  .info { font-size: .85rem; color: var(--suave); margin-top: 4px; min-height: 1.2em; }
+  .info.ok { color: var(--destaque); }
+  .info.ruim { color: var(--erro); }
+  .caixa { border-radius: 8px; padding: 10px 12px; font-size: .88rem; margin-top: 12px; }
+  .caixa.aviso { background: var(--aviso-claro); color: var(--aviso); }
+  .caixa.erro { background: var(--erro-claro); color: var(--erro); }
+  button.calcular { margin-top: 18px; width: 100%; padding: 12px; border: 0; border-radius: 8px; background: var(--destaque); color: var(--card); font: 600 1rem system-ui, sans-serif; cursor: pointer; }
+  button.calcular:disabled { opacity: .6; cursor: wait; }
+  .vazio { color: var(--suave); text-align: center; padding: 40px 10px; }
+  .total { background: var(--destaque-claro); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
+  .total .rotulo { font-size: .85rem; color: var(--suave); }
+  .total .valor { font-size: 1.8rem; font-weight: 700; color: var(--destaque); font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--borda); }
+  th:first-child, td:first-child { text-align: left; }
+  th { font-size: .78rem; color: var(--suave); font-weight: 600; text-transform: uppercase; letter-spacing: .03em; }
+  tfoot td { font-weight: 700; border-bottom: 0; }
+  details { margin-top: 14px; font-size: .85rem; }
+  summary { cursor: pointer; color: var(--suave); }
+  details p { margin: 6px 0; }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--bg); padding: 10px; border-radius: 8px; font-size: .78rem; max-height: 320px; overflow: auto; }
+  .nao { color: var(--suave); }
+  .tag { display:inline-block; font-size:.72rem; padding:1px 6px; border-radius:6px; background: var(--aviso-claro); color: var(--aviso); margin-left:4px; }
+  footer a { color: inherit; }
+  footer { margin-top: 24px; font-size: .8rem; color: var(--suave); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Calculadora CBS/IBS simplificada</h1>
+  <p class="sub">Um item por vez, regime regular. Roda inteira no seu navegador, com as tabelas oficiais da calculadora da Receita Federal.</p>
+
+  <div class="grade">
+    <form class="card" id="form" autocomplete="off">
+      <label>O que está sendo vendido?</label>
+      <div class="abas" role="group">
+        <button type="button" data-tipo="ncm" aria-pressed="true">Produto (NCM)</button>
+        <button type="button" data-tipo="nbs" aria-pressed="false">Serviço (NBS)</button>
+      </div>
+
+      <label for="codigo"><span id="rotuloCodigo">Código NCM</span> <span class="dica">(só números)</span></label>
+      <input id="codigo" inputmode="numeric" placeholder="ex.: 84713012" required>
+      <div class="info" id="infoCodigo"></div>
+
+      <label for="busca">Classificação tributária (cClassTrib)</label>
+      <input id="busca" placeholder="Filtrar por código ou descrição, ex.: alimentação, saúde, 200003">
+      <select id="classTrib" size="6" required></select>
+      <div class="info" id="infoClass"></div>
+
+      <div class="linha">
+        <div>
+          <label for="valor">Valor do item (R$)</label>
+          <input id="valor" inputmode="decimal" placeholder="1.000,00" required>
+        </div>
+        <div>
+          <label for="data">Data da operação</label>
+          <input id="data" type="date" required>
+        </div>
+      </div>
+
+      <div class="linha">
+        <div>
+          <label for="uf">UF</label>
+          <select id="uf" required></select>
+        </div>
+        <div>
+          <label for="municipio">Município</label>
+          <select id="municipio" required></select>
+        </div>
+      </div>
+
+      <div id="blocoAliquotas" hidden>
+        <div class="caixa aviso">Ainda não há alíquota oficial de referência para essa data. Informe as alíquotas que quer simular (em %).</div>
+        <div class="linha3">
+          <div><label for="aCbs">CBS</label><input id="aCbs" inputmode="decimal" value="8,8"></div>
+          <div><label for="aUf">IBS estadual</label><input id="aUf" inputmode="decimal" value="0,05"></div>
+          <div><label for="aMun">IBS municipal</label><input id="aMun" inputmode="decimal" value="0,05"></div>
+        </div>
+      </div>
+
+      <button class="calcular" id="btn" type="submit" disabled>Carregando tabelas…</button>
+      <div id="erroForm"></div>
+    </form>
+
+    <section class="card" id="resultado" aria-live="polite">
+      <div class="vazio">Preencha os dados e clique em <b>Calcular</b>.</div>
+    </section>
+  </div>
+
+  <footer>
+    <p>Protótipo, não substitui orientação contábil. Regras e tabelas: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">calculadora oficial da Receita Federal</a> (licença MIT), <span id="versao"></span>.
+    O cálculo foi conferido contra a API oficial em todas as classificações que esta página calcula; as demais aparecem marcadas como "não calculada".</p>
+  </footer>
+</main>
+
+<script src="calc.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const brl = (n) => Number(n).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const pct = (n) => Number(n).toLocaleString('pt-BR', { maximumFractionDigits: 4 }) + '%';
+const num = (s) => Number(String(s).trim().replace(/\./g, '').replace(',', '.'));
+const semAcento = (s) => String(s).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const hoje = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+
+const dados = {};
+let classes = [];
+let tipo = 'ncm';
+
+async function carregar() {
+  const nomes = ['meta', 'classes', 'ncm', 'nbs', 'ufs'];
+  const jsons = await Promise.all(nomes.map((n) => fetch(`dados/${n}.json`).then((r) => { if (!r.ok) throw new Error(n); return r.json(); })));
+  nomes.forEach((n, i) => { dados[n] = jsons[i]; });
+  classes = dados.classes;
+  $('versao').textContent = `base ${dados.meta.versaoBase} de ${dados.meta.dataVersaoBase.split('-').reverse().join('/')}`;
+}
+
+function preencherUfs() {
+  $('uf').innerHTML = Object.entries(dados.ufs).map(([s, u]) => `<option value="${s}">${s} - ${esc(u.nome)}</option>`).join('');
+  $('uf').value = 'SP';
+  preencherMunicipios();
+}
+function preencherMunicipios() {
+  const uf = dados.ufs[$('uf').value];
+  $('municipio').innerHTML = uf.municipios.map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join('');
+  const capitais = { SP: 3550308, RJ: 3304557, MG: 3106200, RS: 4314902, PR: 4106902, SC: 4205407, BA: 2927408, DF: 5300108 };
+  if (capitais[$('uf').value]) $('municipio').value = capitais[$('uf').value];
+}
+
+function renderClasses() {
+  const termo = semAcento($('busca').value.trim());
+  const atual = $('classTrib').value;
+  const lista = classes.filter((c) => !termo || c.codigo.includes(termo) || semAcento(c.descricao).includes(termo) || semAcento(c.cstDescricao).includes(termo));
+  $('classTrib').innerHTML = lista.map((c) => `<option value="${c.codigo}" title="${esc(c.descricao)}" ${c.suportado ? '' : 'class="nao"'}>${c.codigo} · ${esc(c.descricao)}${c.suportado ? '' : ' (não calculada)'}</option>`).join('');
+  if (lista.some((c) => c.codigo === atual)) $('classTrib').value = atual;
+  else if (lista.length && !termo) $('classTrib').value = lista[0].codigo;
+  mostrarClasse();
+}
+
+function classeAtual() { return classes.find((x) => x.codigo === $('classTrib').value); }
+function codigoAtual() { return $('codigo').value.replace(/\D/g, ''); }
+
+function mostrarClasse() {
+  const c = classeAtual();
+  const info = $('infoClass');
+  info.className = 'info';
+  if (!c) { info.textContent = 'Nenhuma classificação encontrada para esse filtro.'; return; }
+  let txt = `CST ${c.cst} (${c.cstDescricao}) · ${c.tratamento}`;
+  if (c.reducao.some((r) => r > 0)) txt += ` · redução de ${pct(c.reducao[0])} na CBS e ${pct(c.reducao[1])} no IBS`;
+  if (!c.suportado) { info.className = 'info ruim'; info.textContent = `Não calculada nesta versão: ${c.motivo || c.tratamento}.`; return; }
+  const cod = codigoAtual();
+  const tamanho = tipo === 'ncm' ? 8 : 9;
+  if (cod.length === tamanho) {
+    const ap = Calc.aplicavel(tipo === 'ncm' ? c.anexoNcm : c.anexoNbs, cod, $('data').value);
+    if (ap.temAnexo) {
+      info.className = ap.valido ? 'info ok' : 'info ruim';
+      txt = (ap.valido ? '✓ Vale para este código. ' : `✗ Este ${tipo.toUpperCase()} não está no anexo desta classificação. `) + txt;
+    }
+  }
+  info.textContent = txt;
+}
+
+function consultarCodigo() {
+  const cod = codigoAtual();
+  const info = $('infoCodigo');
+  const tamanho = tipo === 'ncm' ? 8 : 9;
+  info.className = 'info';
+  if (!cod) { info.textContent = ''; }
+  else if (cod.length < tamanho) { info.textContent = `${tipo.toUpperCase()} tem ${tamanho} dígitos.`; }
+  else {
+    const d = Calc.descrever(dados[tipo], tipo, cod);
+    if (d) { info.className = 'info ok'; info.textContent = '✓ ' + d; }
+    else { info.className = 'info ruim'; info.textContent = `${tipo.toUpperCase()} ${cod} não encontrado na tabela oficial.`; }
+  }
+  mostrarClasse();
+}
+
+function verificarReferencia() {
+  $('blocoAliquotas').hidden = Calc.temReferencia(dados.meta, $('data').value);
+}
+
+function calcular(ev) {
+  ev.preventDefault();
+  $('erroForm').innerHTML = '';
+  const c = classeAtual();
+  const entrada = { classe: c, tipo, codigo: codigoAtual(), valor: num($('valor').value), data: $('data').value };
+  if (!Calc.temReferencia(dados.meta, entrada.data)) entrada.aliquotas = { cbs: num($('aCbs').value), ibsUf: num($('aUf').value), ibsMun: num($('aMun').value) };
+  const r = Calc.calcular(entrada, dados);
+  if (r.erros) {
+    $('resultado').innerHTML = `<div class="caixa erro"><b>Não foi possível calcular.</b><ul>${r.erros.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></div>`;
+    return;
+  }
+  const rodape = `<p class="info">CST ${esc(c.cst)} · cClassTrib ${esc(c.codigo)} · ${esc(c.descricao)}<br>${esc($('municipio').selectedOptions[0].text)}/${esc($('uf').value)} · ${entrada.data.split('-').reverse().join('/')}</p>`;
+  if (r.semDestaque) {
+    $('resultado').innerHTML = `<div class="total"><div class="rotulo">Tributos sobre ${brl(r.base)}</div><div class="valor">${brl(0)}</div>
+      <div class="rotulo">${esc(c.cstDescricao)}: não há destaque de CBS nem de IBS nesta operação.</div></div>${rodape}`;
+    return;
+  }
+  const linhas = r.tributos.map((t) => `<tr><td>${t.nome}</td><td>${pct(t.aliquota)}</td><td>${t.reducao ? pct(t.reducao) : '—'}</td><td>${pct(t.efetiva)}</td><td>${brl(t.valor)}</td></tr>`).join('');
+  const diferido = r.tributos.reduce((s, t) => s + t.diferido, 0);
+  const memoria = r.tributos.map((t) => `<p><b>${t.nome}:</b> base ${brl(r.base)} × ${pct(t.aliquota)}${t.reducao ? ` × (1 − ${pct(t.reducao)})` : ''} = ${brl(t.valor || t.diferido)}${t.diferido ? ' (diferido)' : ''}.</p>`).join('');
+  $('resultado').innerHTML = `
+    <div class="total">
+      <div class="rotulo">Tributos sobre ${brl(entrada.valor)} (CBS + IBS)</div>
+      <div class="valor">${brl(r.total)}</div>
+      <div class="rotulo">Carga efetiva ${pct((r.total / entrada.valor * 100).toFixed(4))} · valor com tributos ${brl(entrada.valor + r.total)}</div>
+    </div>
+    ${r.simulado ? '<div class="caixa aviso">Cálculo simulado com as alíquotas que você informou.</div>' : ''}
+    ${diferido ? `<div class="caixa aviso">Operação com diferimento: ${brl(diferido)} de tributo calculado fica diferido e não é cobrado nesta etapa.</div>` : ''}
+    ${r.base !== entrada.valor ? `<div class="caixa aviso">Base de cálculo ajustada pela classificação: ${brl(r.base)}.</div>` : ''}
+    <table>
+      <thead><tr><th>Tributo</th><th>Alíquota</th><th>Redução</th><th>Efetiva</th><th>Valor</th></tr></thead>
+      <tbody>${linhas}</tbody>
+      <tfoot><tr><td>Total</td><td></td><td></td><td></td><td>${brl(r.total)}</td></tr></tfoot>
+    </table>
+    ${rodape}
+    <details><summary>Memória de cálculo</summary>${memoria}</details>`;
+}
+
+document.querySelectorAll('.abas button').forEach((b) => b.addEventListener('click', () => {
+  tipo = b.dataset.tipo;
+  document.querySelectorAll('.abas button').forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
+  $('rotuloCodigo').textContent = tipo === 'ncm' ? 'Código NCM' : 'Código NBS';
+  $('codigo').placeholder = tipo === 'ncm' ? 'ex.: 84713012' : 'ex.: 122011200';
+  consultarCodigo();
+}));
+$('codigo').addEventListener('input', consultarCodigo);
+$('busca').addEventListener('input', renderClasses);
+$('classTrib').addEventListener('change', mostrarClasse);
+$('uf').addEventListener('change', preencherMunicipios);
+$('data').addEventListener('change', () => { verificarReferencia(); consultarCodigo(); });
+$('form').addEventListener('submit', calcular);
+
+(async () => {
+  $('data').value = hoje();
+  try {
+    await carregar();
+    preencherUfs(); renderClasses(); verificarReferencia();
+    $('btn').disabled = false; $('btn').textContent = 'Calcular';
+  } catch (e) {
+    $('resultado').innerHTML = `<div class="caixa erro"><b>Não consegui carregar as tabelas.</b><br>${esc(e.message)}</div>`;
+  }
+})();
+</script>
+</body>
+</html>
