@@ -46,6 +46,12 @@
   .vazio { color: var(--suave); text-align: center; padding: 40px 10px; }
   .total { background: var(--destaque-claro); border-radius: 10px; padding: 14px 16px; margin-bottom: 14px; }
   .total .rotulo { font-size: .85rem; color: var(--suave); }
+  .totais { margin-top: 12px; border-top: 1px solid var(--borda); padding-top: 6px; }
+  .tot-linha { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: baseline; padding: 6px 0; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .tot-linha + .tot-linha { border-top: 1px dashed var(--borda); }
+  .tot-linha:first-child b { color: var(--destaque); }
+  .tot-linha small { display: block; font-size: .72rem; color: var(--suave); }
+  .tot-carga { color: var(--suave); font-size: .82rem; }
   .total .valor { font-size: 1.8rem; font-weight: 700; color: var(--destaque); font-variant-numeric: tabular-nums; }
   table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
   th, td { text-align: right; padding: 8px 6px; border-bottom: 1px solid var(--borda); }
@@ -419,7 +425,7 @@ function calcular(ev) {
   const rodape = `<p class="info">CST ${esc(c.cst)} · cClassTrib ${esc(c.codigo)} · ${esc(c.descricao)}<br>${esc($('municipio').selectedOptions[0].text)}/${esc($('uf').value)} · ${entrada.data.split('-').reverse().join('/')}</p>`;
   if (r.semDestaque) {
     $('resultado').innerHTML = `<div class="total"><div class="rotulo">Tributos sobre ${brl(r.base)}</div><div class="valor">${brl(0)}</div>
-      <div class="rotulo">${esc(c.cstDescricao)}: não há destaque de CBS nem de IBS nesta operação.</div></div>${rodape}<div id="comparativo"></div>`;
+      <div class="rotulo">${esc(c.cstDescricao)}: não há destaque de CBS nem de IBS nesta operação.</div><div class="totais" id="totais"></div></div>${rodape}<div id="comparativo"></div>`;
     iniciarComparativo(entrada, c, r);
     return;
   }
@@ -431,6 +437,7 @@ function calcular(ev) {
       <div class="rotulo">Tributos sobre ${brl(entrada.valor)} (CBS + IBS)</div>
       <div class="valor">${brl(r.total)}</div>
       <div class="rotulo">Carga efetiva ${pct((r.total / entrada.valor * 100).toFixed(4))} · valor com tributos ${brl(entrada.valor + r.total)}</div>
+      <div class="totais" id="totais"></div>
     </div>
     ${r.simulado ? '<div class="caixa aviso">Cálculo simulado com as alíquotas que você informou.</div>' : ''}
     ${diferido ? `<div class="caixa aviso">Operação com diferimento: ${brl(diferido)} de tributo calculado fica diferido e não é cobrado nesta etapa.</div>` : ''}
@@ -452,7 +459,7 @@ let compAberto = false; // lembra se a pessoa abriu o comparativo
 function iniciarComparativo(entrada, classe, r) {
   const at = dados['impostos-atuais'];
   const uf = $('uf').value;
-  ctxComp = { entrada, classe, r };
+  ctxComp = { entrada, classe, r, totais: {} };
   // IPI pela TIPI oficial (estimativa): só se aplica a indústria e importador
   const ipiTipi = { valor: 0, dica: 'TIPI indisponível; informe se for indústria/importador' };
   const tipi = dados.tipi && dados.tipi.aliquotas;
@@ -491,6 +498,22 @@ function iniciarComparativo(entrada, classe, r) {
   $('compDet').querySelectorAll('input, select').forEach((el) => el.addEventListener('input', () => { atualizarComparativo(); if (dados.simples) atualizarSimples(); }));
   atualizarComparativo();
   iniciarSimples();
+}
+
+// Os quatro totais no quadro do resultado: o cálculo do ano e as três estimativas
+function atualizarTotais() {
+  const el = $('totais');
+  if (!el || !ctxComp || !ctxComp.totais) return;
+  const { entrada, r, totais: t } = ctxComp;
+  const v = entrada.valor;
+  const ano = entrada.data.slice(0, 4);
+  const linha = (rotulo, valor, sub) => `<div class="tot-linha"><span>${rotulo}${sub ? `<small>${esc(sub)}</small>` : ''}</span><span class="tot-carga">${valor === null ? '—' : pct((valor / v * 100).toFixed(2))}</span><b>${valor === null ? '—' : brl(valor)}</b></div>`;
+  el.innerHTML = [
+    linha(`CBS + IBS em ${ano}`, r.total, 'cálculo oficial, o mesmo de cima'),
+    linha('CBS + IBS estimado', t.plena ?? null, 'alíquotas plenas a partir de 2033'),
+    linha('Impostos atuais estimados', t.atual ?? null, t.atualNome),
+    linha('Simples Nacional estimado', t.sn ?? null, t.snNome || 'informe a receita no comparativo do Simples'),
+  ].join('');
 }
 
 // CBS + IBS com as alíquotas plenas (2033), aplicando as reduções da classificação
@@ -535,6 +558,8 @@ function atualizarComparativo() {
   const dif = cargaPlena - cargaAtual;
   const ano = Number(entrada.data.slice(0, 4));
 
+  ctxComp.totais = { ...ctxComp.totais, plena, atual: totalAtual, atualNome: atuais.map(([n]) => n.split(' ')[0]).join(' + ') };
+  atualizarTotais();
   const fmtPP = (x) => Math.abs(x).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
   $('compResumo').innerHTML = `Hoje <b>${pct(cargaAtual.toFixed(2))}</b> (${brl(totalAtual)}) → CBS+IBS plenos <b>${pct(cargaPlena.toFixed(2))}</b> (${brl(plena)})
     <span class="comp-dif ${dif > 0.005 ? 'sobe' : dif < -0.005 ? 'cai' : ''}">${Math.abs(dif) < 0.005 ? 'igual' : `${dif > 0 ? '▲ +' : '▼ −'}${fmtPP(dif)} p.p.`}</span>`;
@@ -629,12 +654,14 @@ function atualizarSimples() {
   const lerPct = (id, padrao) => { const el = $(id); const v = el ? num(el.value) : padrao; return Number.isFinite(v) && v >= 0 ? v : padrao; };
   const aliqLocal = anexo === 'I' || anexo === 'II' ? lerPct('cIcms', at.icmsInterno.aliquotas[$('uf').value] ?? 18) : lerPct('cIss', at.iss.padrao);
   if (!(rbt12 > 0)) {
+    ctxComp.totais.sn = null; atualizarTotais();
     $('snResumo').textContent = 'Informe a receita dos últimos 12 meses.';
     $('snFaixa').textContent = ''; $('snTabela').innerHTML = '';
     return;
   }
   const d = calcularDas(sn, anexo, rbt12, aliqLocal);
   if (d.erro) {
+    ctxComp.totais.sn = null; atualizarTotais();
     $('snResumo').textContent = d.erro; $('snFaixa').textContent = ''; $('snTabela').innerHTML = '';
     return;
   }
@@ -666,6 +693,8 @@ function atualizarSimples() {
 
   const c = (v) => v / valor * 100;
   const menor = Math.abs(dentro - fora) < 0.005 ? null : dentro < fora ? 'dentro' : 'fora';
+  ctxComp.totais.sn = hoje; ctxComp.totais.snNome = `DAS ${t.nome.split(' · ')[0]}, ${d.faixa + 1}ª faixa${d.foraDoDas ? ` + ${d.local} por fora` : ''}`;
+  atualizarTotais();
   $('snResumo').innerHTML = `DAS hoje <b>${p2(c(hoje))}</b> (${brl(hoje)}) → reforma plena: dentro do DAS <b>${p2(c(dentro))}</b> · por fora <b>${p2(c(fora))}</b>
     ${menor ? `<span class="comp-dif cai">menor: ${menor === 'dentro' ? 'dentro do DAS' : 'por fora'}</span>` : ''}`;
 
