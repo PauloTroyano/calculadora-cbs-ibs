@@ -263,6 +263,8 @@ async function carregar() {
   const nomes = ['meta', 'classes', 'ncm', 'nbs', 'ufs', 'impostos-atuais'];
   const jsons = await Promise.all(nomes.map((n) => fetch(`dados/${n}.json`).then((r) => { if (!r.ok) throw new Error(n); return r.json(); })));
   nomes.forEach((n, i) => { dados[n] = jsons[i]; });
+  // TIPI (IPI por NCM) é opcional: se não carregar, o campo de IPI fica manual
+  dados.tipi = await fetch('dados/tipi.json').then((r) => (r.ok ? r.json() : null)).catch(() => null);
   classes = dados.classes;
   const br = (d) => (d ? d.split('-').reverse().join('/') : '—');
   const m = dados.meta;
@@ -435,6 +437,15 @@ function iniciarComparativo(entrada, classe, r) {
   const at = dados['impostos-atuais'];
   const uf = $('uf').value;
   ctxComp = { entrada, classe, r };
+  // IPI pela TIPI oficial (estimativa): só se aplica a indústria e importador
+  const ipiTipi = { valor: 0, dica: 'TIPI indisponível; informe se for indústria/importador' };
+  const tipi = dados.tipi && dados.tipi.aliquotas;
+  if (tipi && entrada.tipo === 'ncm') {
+    const a = tipi[entrada.codigo];
+    if (a === 'NT') { ipiTipi.dica = 'TIPI: NT (não tributado)'; }
+    else if (typeof a === 'number') { ipiTipi.valor = a; ipiTipi.dica = `TIPI: ${pct(a)} · estimativa, só indústria/importador`; }
+    else { ipiTipi.dica = 'NCM não achado na TIPI; informe se precisar'; }
+  }
   const servico = entrada.tipo === 'nbs';
   $('comparativo').innerHTML = `
     <h3 class="comp-titulo">Comparativo com os impostos atuais <span class="tag">estimativa</span></h3>
@@ -443,7 +454,7 @@ function iniciarComparativo(entrada, classe, r) {
       ${servico
         ? `<div><label for="cIss">ISS do município (%)</label><input id="cIss" inputmode="decimal" value="${String(at.iss.padrao).replace('.', ',')}"><div class="dica">entre ${at.iss.minimo}% e ${at.iss.maximo}%</div></div>`
         : `<div><label for="cIcms">ICMS interno ${uf} (%)</label><input id="cIcms" inputmode="decimal" value="${String(at.icmsInterno.aliquotas[uf] ?? 18).replace('.', ',')}"><div class="dica">alíquota geral do estado</div></div>
-           <div><label for="cIpi">IPI (%)</label><input id="cIpi" inputmode="decimal" value="0"><div class="dica">só indústria/importador; veja a TIPI</div></div>`}
+           <div><label for="cIpi">IPI (%)</label><input id="cIpi" inputmode="decimal" value="${String(ipiTipi.valor).replace('.', ',')}"><div class="dica">${ipiTipi.dica}</div></div>`}
       <div><label for="cPis">PIS/Cofins (regime)</label><select id="cPis">
         <option value="naoCumulativo">Real · 9,25%</option>
         <option value="cumulativo">Presumido · 3,65%</option>
@@ -476,7 +487,7 @@ function atualizarComparativo() {
     atuais.push(['ICMS', icms, vIcms]);
     // PIS/Cofins sem o ICMS na base (Tema 69 do STF)
     atuais.push(['PIS/Cofins (base sem ICMS)', aliqPis, (valor - vIcms) * aliqPis / 100]);
-    if (ipi) atuais.push(['IPI (por fora)', ipi, valor * ipi / 100]);
+    if (ipi) atuais.push(['IPI (por fora, estimativa TIPI)', ipi, valor * ipi / 100]);
   }
   const totalAtual = atuais.reduce((s, [, , v]) => s + v, 0);
   const cargaAtual = totalAtual / valor * 100;
@@ -509,7 +520,7 @@ function atualizarComparativo() {
     ${ano < 2033 ? `<p class="info">Entre 2026 e 2032 os impostos atuais e a CBS/IBS convivem em transição: em 2026 a CBS/IBS é um teste de 1%, compensável com PIS/Cofins. A comparação justa é com a linha "plenos".</p>` : ''}
     ${classe.reducao.some((x) => x > 0) ? '<p class="info">Esta classificação tem benefício na reforma. Hoje o mesmo item pode ter benefícios de ICMS ou PIS/Cofins (como a cesta básica, com PIS/Cofins zero); se for o caso, ajuste os campos acima.</p>' : ''}
     <details><summary>Fontes e premissas</summary>
-      <p>${esc(at.icmsInterno.fonte)}</p><p>${esc(at.pisCofins.fonte)}</p><p>${esc(at.iss.fonte)}</p><p>${esc(at.reformaPlena.fonte)}</p>
+      <p>${esc(at.icmsInterno.fonte)}</p>${dados.tipi ? `<p>IPI: ${esc(dados.tipi.fonte)}, lida em ${dados.tipi.dataLeitura.split('-').reverse().join('/')}. Estimativa: o IPI só é cobrado na saída da indústria ou do importador, e algumas NCMs têm exceções (Ex) não consideradas.</p>` : ''}<p>${esc(at.pisCofins.fonte)}</p><p>${esc(at.iss.fonte)}</p><p>${esc(at.reformaPlena.fonte)}</p>
       <p>Não considera créditos de etapas anteriores, que existem no regime atual não cumulativo e na reforma. ${esc(at.observacao)}</p>
     </details>`;
 }

@@ -34,6 +34,9 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Instalar leitor de PDF (para a TIPI)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+
       - name: Baixar, exportar e validar as tabelas oficiais
         run: ferramentas/atualizar.sh "$RUNNER_TEMP/trabalho"
 

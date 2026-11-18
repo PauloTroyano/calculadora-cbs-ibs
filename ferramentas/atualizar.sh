@@ -68,5 +68,16 @@ if [ "$falhou" = 1 ]; then
   exit 1
 fi
 
+echo "::group::IPI pela TIPI oficial (estimativa)"
+# Não bloqueia a atualização: se o download ou a leitura falhar, mantém a TIPI anterior.
+if curl -sSfL -A "Mozilla/5.0" -m 180 -o "$TRAB/tipi.pdf" "https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/legislacao/documentos-e-arquivos/tipi.pdf" \
+   && pdftotext -layout "$TRAB/tipi.pdf" "$TRAB/tipi.txt" \
+   && python3 ferramentas/tipi.py "$TRAB/tipi.txt" "$TRAB/tipi.json" "$HOJE"; then
+  cp "$TRAB/tipi.json" dados/tipi.json
+else
+  echo "::warning::Não consegui atualizar a TIPI hoje; mantida a versão anterior."
+fi
+echo "::endgroup::"
+
 python3 ferramentas/atualizar_meta.py "$TRAB/dados-anterior/meta.json" dados/meta.json "$HOJE" "$COMMIT" "$VERSAO_API"
 echo "Atualização concluída."
