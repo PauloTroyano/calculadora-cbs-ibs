@@ -78,6 +78,8 @@
   .painel p, .painel li { font-size: .9rem; margin: 6px 0; }
   .rotulo-codigo { justify-content: space-between; flex-wrap: wrap; margin-top: 14px; }
   .rotulo-codigo label { margin: 0; }
+  .resultados .tag-est { color: var(--destaque); font-weight: 700; font-size: .75rem; display: block; margin-top: 2px; }
+  .resultados .ruim { color: var(--erro); }
   .link-busca { border: 0; background: none; color: var(--destaque); font: 600 .82rem system-ui, sans-serif; cursor: pointer; padding: 2px 0; text-decoration: underline; text-underline-offset: 2px; }
   .busca-abas { display: flex; gap: 6px; margin: 10px 0; }
   .busca-abas button { flex: 1; padding: 7px; border: 1px solid var(--borda); background: var(--bg); color: var(--texto); border-radius: 8px; cursor: pointer; font: inherit; font-size: .85rem; }
@@ -110,11 +112,11 @@
         <button type="button" data-tipo="nbs" aria-pressed="false">Serviços - NBS</button>
       </div>
 
-      <div class="rotulo-ajuda rotulo-codigo"><label for="codigo"><span id="rotuloCodigo">Código NCM</span> <span class="dica">(só números)</span></label><button type="button" class="link-busca" id="abrirBuscaNome">🔍 Não sabe o código? Buscar por nome</button></div>
+      <div class="rotulo-ajuda rotulo-codigo"><label for="codigo"><span id="rotuloCodigo">Código NCM</span> <span class="dica">(só números)</span></label><button type="button" class="link-busca" id="abrirBuscaNome">🔍 Busca por nome</button></div>
       <input id="codigo" inputmode="numeric" placeholder="ex.: 84713012" required>
       <div class="info" id="infoCodigo"></div>
 
-      <div class="rotulo-ajuda"><label for="busca">Classificação tributária (cClassTrib)</label><button type="button" class="ajuda" data-ajuda="classificacao" aria-label="O que é a classificação tributária?" title="O que é a classificação tributária?">?</button></div>
+      <div class="rotulo-ajuda rotulo-codigo"><span class="rotulo-ajuda"><label for="busca">Classificação tributária (cClassTrib)</label><button type="button" class="ajuda" data-ajuda="classificacao" aria-label="O que é a classificação tributária?" title="O que é a classificação tributária?">?</button></span><button type="button" class="link-busca" id="abrirBuscaClasse">🔍 Busca por nome</button></div>
       <input id="busca" type="search" placeholder="Buscar por nome ou código, ex.: alimentação, saúde, 200003">
       <label class="chave"><input type="checkbox" id="soValidas" role="switch"><span class="trilho" aria-hidden="true"></span><span id="rotuloValidas">Mostrar só as que valem para este código</span></label>
       <select id="classTrib" size="6" required></select>
@@ -132,7 +134,7 @@
         </div>
       </div>
 
-      <div class="rotulo-ajuda rotulo-codigo"><label>Local da operação</label><button type="button" class="link-busca" id="abrirBuscaMunicipio">🔍 Buscar município pelo nome</button></div>
+      <div class="rotulo-ajuda rotulo-codigo"><label>Local da operação</label><button type="button" class="link-busca" id="abrirBuscaMunicipio">🔍 Busca por nome</button></div>
       <div class="linha">
         <div>
           <label for="uf">UF</label>
@@ -206,6 +208,13 @@
     <input id="buscaMunicipio" type="search" placeholder="ex.: Campinas, Porto Alegre, São José" autocomplete="off">
     <div class="contagem" id="municipioContagem"></div>
     <ul class="resultados" id="municipioResultados"></ul>
+  </div>
+  <div id="ajuda-classe" hidden>
+    <h2>Buscar classificação tributária pelo nome</h2>
+    <p>Digite o setor ou a situação, por exemplo "saúde", "alimentação", "exportação" ou "isenção". Ao clicar no resultado, a classificação é escolhida na calculadora.</p>
+    <input id="buscaClasse" type="search" placeholder="ex.: saúde, alimentação, transporte" autocomplete="off">
+    <div class="contagem" id="classeContagem"></div>
+    <ul class="resultados" id="classeResultados"></ul>
   </div>
   <div id="ajuda-classificacao" hidden>
     <h2>Classificação tributária (cClassTrib)</h2>
@@ -499,6 +508,49 @@ $('buscaResultados').addEventListener('click', (e) => {
   $('codigo').value = b.dataset.codigo;
   consultarCodigo();
   ultimoFoco = $('codigo');
+  fecharAjuda();
+});
+
+// ---------- Busca de classificação por nome ----------
+function buscarClasse() {
+  const palavras = semAcento($('buscaClasse').value.trim()).split(/\s+/).filter(Boolean);
+  const cod = codigoCompleto();
+  const filtrar = cod && $('soValidas').checked;
+  const peso = ({ c, v }) => (v.especifica ? 2 : (cod && c.codigo === PADRAO ? 1 : 0));
+  // Sem texto: mostra as sugestões (★) para o código digitado; com texto, busca em todas
+  const achados = classes.map((c) => ({ c, v: cod ? vinculo(c, cod) : { valida: true } }))
+    .filter(({ c, v }) => {
+      if (filtrar && !v.valida) return false;
+      if (!palavras.length) return cod ? peso({ c, v }) > 0 : true;
+      const texto = semAcento(`${c.codigo} ${c.descricao} ${c.cstDescricao} ${c.tratamento || ''}`);
+      return palavras.every((p) => texto.includes(p) || texto.includes(radical(p)));
+    })
+    .sort((a, b) => peso(b) - peso(a) || a.c.codigo.localeCompare(b.c.codigo));
+  const LIMITE = 60;
+  let msg = achados.length ? `${achados.length} classificaç${achados.length > 1 ? 'ões' : 'ão'}` : 'Nenhuma classificação encontrada.';
+  if (achados.length > LIMITE) msg += `, mostrando as ${LIMITE} primeiras`;
+  if (achados.length) msg += !palavras.length && cod ? ` sugerida${achados.length > 1 ? 's' : ''} para ${tipo.toUpperCase()} ${cod}. Digite para buscar em todas.` : filtrar ? ` que valem para ${tipo.toUpperCase()} ${cod}.` : '.';
+  $('classeContagem').textContent = msg;
+  $('classeResultados').innerHTML = achados.slice(0, LIMITE).map((item) => {
+    const { c, v } = item;
+    const est = peso(item) === 2 ? '★ benefício da lei para este código' : peso(item) === 1 ? '★ padrão, mais comum' : '';
+    const red = c.reducao.some((r) => r > 0) ? ` · redução ${c.reducao[0]}% CBS / ${c.reducao[1]}% IBS` : '';
+    const aviso = !c.suportado ? '<span class="cam ruim">Não calculada nesta versão</span>' : cod && !v.valida ? `<span class="cam ruim">Não vale para ${tipo.toUpperCase()} ${cod}</span>` : '';
+    return `<li><button type="button" data-classe="${c.codigo}"><span class="cod">${c.codigo}</span>${palavras.length ? destacar(c.descricao, palavras) : esc(c.descricao)}<span class="cam">CST ${c.cst} · ${esc(c.tratamento || c.cstDescricao)}${red}</span>${est ? `<span class="tag-est">${est}</span>` : ''}${aviso}</button></li>`;
+  }).join('');
+}
+$('abrirBuscaClasse').addEventListener('click', () => { abrirAjuda('classe'); buscarClasse(); $('buscaClasse').focus(); });
+$('buscaClasse').addEventListener('input', buscarClasse);
+$('classeResultados').addEventListener('click', (e) => {
+  const b = e.target.closest('button[data-classe]');
+  if (!b) return;
+  $('busca').value = '';
+  renderClasses();
+  // se a chave estiver ligada e a escolhida não estiver na lista, desliga a chave para poder selecioná-la
+  if (![...$('classTrib').options].some((o) => o.value === b.dataset.classe)) { $('soValidas').checked = false; renderClasses(); }
+  $('classTrib').value = b.dataset.classe;
+  mostrarClasse();
+  ultimoFoco = $('classTrib');
   fecharAjuda();
 });
 
