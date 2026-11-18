@@ -24,7 +24,19 @@ Resultado da última validação: 328 cálculos iguais, 0 diferentes; 600 víncu
   Elas aparecem na lista com "(não calculada)" e o motivo.
 - Para datas a partir de 2027 ainda não há alíquota oficial de referência: a página pede as alíquotas para simular.
 
-## Atualizar as tabelas quando a Receita publicar nova versão
+## Atualização automática
+
+O workflow `.github/workflows/atualizar-tabelas.yml` roda **todo dia às 05:00 (Brasília)** e também pode ser disparado
+manualmente em Actions → "Atualizar tabelas da Receita" → Run workflow. Ele roda `ferramentas/atualizar.sh`, que:
+
+1. baixa a versão mais recente da calculadora oficial da Receita, gera o banco e sobe a API oficial;
+2. exporta as tabelas para `dados/` com a data do dia;
+3. valida `calc.js` contra a API oficial. Se alguma classificação que funcionava passar a divergir, **não publica**, mantém as tabelas
+   antigas e o workflow falha (o GitHub avisa por e-mail);
+4. se passar, grava em `dados/meta.json` a data da última verificação e, se alguma tabela mudou, a data da atualização. Essas datas
+   aparecem no rodapé da página.
+
+## Atualizar as tabelas manualmente
 
 ```bash
 git clone --depth 1 https://github.com/ReceitaFederal/calculadora-rtc-regime-regular api && cd api
