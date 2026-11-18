@@ -126,6 +126,16 @@
   .painel .fechar { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border: 1px solid var(--borda); border-radius: 8px; background: var(--bg); color: var(--texto); font-size: 1.1rem; cursor: pointer; }
   .fundo { position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 9; }
   @media (prefers-reduced-motion: reduce) { .painel { transition: none; } }
+  .conceitos { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin-top: 20px; }
+  .conceito { display: flex; gap: 12px; align-items: center; text-align: left; padding: 14px 16px; border: 1px solid var(--borda); border-radius: 12px; background: var(--card); color: var(--texto); font: inherit; cursor: pointer; }
+  .conceito:hover, .conceito:focus-visible { border-color: var(--destaque); }
+  .conceito .q { flex: none; width: 28px; height: 28px; border-radius: 50%; border: 1px solid var(--destaque); color: var(--destaque); display: grid; place-items: center; font-weight: 700; }
+  .conceito:hover .q { background: var(--destaque); color: var(--card); }
+  .conceito small { display: block; font-size: .78rem; color: var(--suave); margin-top: 2px; }
+  .linha-tempo { list-style: none; padding: 0; margin: 8px 0; }
+  .linha-tempo li { border-left: 3px solid var(--destaque); padding: 2px 0 10px 12px; margin: 0; }
+  .linha-tempo li b:first-child { display: block; color: var(--destaque); }
+  .exemplo td, .exemplo th { font-size: .8rem; padding: 5px 4px; }
   footer { margin-top: 24px; font-size: .8rem; color: var(--suave); }
 </style>
 </head>
@@ -194,6 +204,11 @@
     </section>
   </div>
 
+  <nav class="conceitos" aria-label="Entenda a reforma">
+    <button type="button" class="conceito" data-ajuda="credito"><span class="q">?</span><span><b>Como funciona o crédito</b><small>não cumulatividade, split payment e exemplo</small></span></button>
+    <button type="button" class="conceito" data-ajuda="transicao"><span class="q">?</span><span><b>Convivência entre os impostos</b><small>o que muda de 2026 a 2033</small></span></button>
+  </nav>
+
   <footer>
     <p>Protótipo, não substitui orientação contábil. Regras e tabelas: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">calculadora oficial da Receita Federal</a> (licença MIT), <span id="versao"></span>.
     O cálculo foi conferido contra a API oficial em todas as classificações que esta página calcula; as demais aparecem marcadas como "não calculada".</p>
@@ -246,6 +261,52 @@
     <input id="buscaClasse" type="search" placeholder="ex.: saúde, alimentação, transporte" autocomplete="off">
     <div class="contagem" id="classeContagem"></div>
     <ul class="resultados" id="classeResultados"></ul>
+  </div>
+  <div id="ajuda-credito" hidden>
+    <h2>Como funciona o crédito na reforma</h2>
+    <p>A CBS e o IBS são <b>não cumulativos</b>: cada empresa paga o tributo da sua venda e desconta o que já foi pago nas compras. No fim, o imposto total corresponde só ao preço pago pelo consumidor final.</p>
+    <h3>Exemplo com 26,5%</h3>
+    <table class="exemplo">
+      <thead><tr><th>Etapa</th><th>Venda</th><th>CBS/IBS</th><th>Crédito</th><th>Paga</th></tr></thead>
+      <tbody>
+        <tr><td>Fornecedor</td><td>100</td><td>26,50</td><td>0</td><td>26,50</td></tr>
+        <tr><td>Indústria</td><td>300</td><td>79,50</td><td>26,50</td><td>53,00</td></tr>
+        <tr><td>Loja</td><td>500</td><td>132,50</td><td>79,50</td><td>53,00</td></tr>
+      </tbody>
+      <tfoot><tr><td>Total</td><td></td><td></td><td></td><td>132,50</td></tr></tfoot>
+    </table>
+    <p>Somando as três etapas, o governo recebe R$ 132,50, exatamente 26,5% dos R$ 500 pagos pelo consumidor.</p>
+    <h3>O que muda em relação a hoje</h3>
+    <ul>
+      <li><b>Crédito amplo (financeiro):</b> dá crédito tudo o que a empresa compra para a atividade, como energia, aluguel, serviços, material de escritório e bens do ativo. Hoje o ICMS e o PIS/Cofins limitam muito o que gera crédito.</li>
+      <li><b>Exceções:</b> bens considerados de uso pessoal, como joias, obras de arte, bebidas alcoólicas, cigarros, armas e itens de lazer, não geram crédito, salvo quando fazem parte da atividade da empresa.</li>
+      <li><b>Crédito só do que foi pago:</b> o crédito depende de o tributo da compra ter sido efetivamente recolhido.</li>
+      <li><b>Isenção e imunidade</b> em regra anulam o crédito das compras ligadas a essas vendas. A <b>alíquota reduzida</b> mantém o crédito.</li>
+      <li><b>Saldo a favor</b> pode ser compensado nos meses seguintes ou ressarcido.</li>
+    </ul>
+    <h3>Split payment</h3>
+    <p>No pagamento eletrônico (Pix, cartão, boleto), a parte da CBS/IBS pode ser separada na hora e enviada direto ao governo. O vendedor recebe o valor líquido. É assim que o sistema confere que o tributo foi pago e libera o crédito para quem comprou. A implantação é gradual.</p>
+    <h3>E o Simples Nacional?</h3>
+    <p>Quem compra de empresa do Simples credita só a CBS/IBS paga dentro do DAS, que costuma ser bem menor. Se a empresa do Simples optar por recolher a CBS/IBS por fora, o cliente credita o valor cheio. Veja o comparativo do Simples no resultado.</p>
+    <p class="info">Base: LC 214/2025, capítulos da não cumulatividade, do uso e consumo pessoal e do split payment. Explicação simplificada.</p>
+  </div>
+  <div id="ajuda-transicao" hidden>
+    <h2>Convivência entre os impostos (2026 a 2033)</h2>
+    <p>A troca não acontece de uma vez. Durante a transição, os impostos de hoje e os novos convivem, e a calculadora mostra o ano da data que você escolher.</p>
+    <ul class="linha-tempo">
+      <li><b>2026 · ano de teste</b>CBS de 0,9% e IBS de 0,1% aparecem na nota fiscal, mas podem ser compensados com PIS/Cofins. Para quem cumpre as obrigações da nota, não há custo extra. O Simples Nacional fica de fora. Todos os impostos de hoje continuam.</li>
+      <li><b>2027 · entra a CBS</b>PIS e Cofins acabam e a CBS passa a valer integralmente. O IPI vai a zero, exceto para produtos com industrialização incentivada na Zona Franca de Manaus. Começa o Imposto Seletivo (cigarros, bebidas alcoólicas e açucaradas, veículos, minérios e outros). O IBS segue simbólico em 0,1%.</li>
+      <li><b>2028</b>Igual a 2027.</li>
+      <li><b>2029 a 2032 · troca gradual do ICMS e do ISS</b>As alíquotas de ICMS e ISS caem para 90%, 80%, 70% e 60% das atuais, e o IBS sobe na mesma proporção. Os benefícios fiscais de ICMS também diminuem.</li>
+      <li><b>2033 · sistema novo completo</b>ICMS e ISS deixam de existir. Ficam só a CBS (federal), o IBS (estados e municípios) e o Imposto Seletivo.</li>
+    </ul>
+    <h3>Na prática</h3>
+    <ul>
+      <li>Até 2032, uma venda pode ter ICMS ou ISS e CBS/IBS ao mesmo tempo. É por isso que o comparativo usa as alíquotas plenas (26,5%) para comparar com o sistema de hoje.</li>
+      <li>A partir de 2027, a CBS/IBS deixa de entrar na base do ICMS e do ISS, e vice-versa: cada tributo é calculado "por fora".</li>
+      <li>A alíquota final de referência ainda vai ser fixada pelo Senado. A LC 214/2025 prevê um teto de 26,5% somando CBS e IBS.</li>
+    </ul>
+    <p class="info">Base: Emenda Constitucional 132/2023 e LC 214/2025 (arts. 343 a 348 e disposições de transição). Explicação simplificada.</p>
   </div>
   <div id="ajuda-classificacao" hidden>
     <h2>Classificação tributária (cClassTrib)</h2>
@@ -927,7 +988,7 @@ function fecharAjuda() {
   $('fundo').hidden = true;
   if (ultimoFoco) ultimoFoco.focus();
 }
-document.querySelectorAll('.ajuda').forEach((b) => b.addEventListener('click', () => abrirAjuda(b.dataset.ajuda)));
+document.querySelectorAll('.ajuda, .conceito').forEach((b) => b.addEventListener('click', () => abrirAjuda(b.dataset.ajuda)));
 $('fecharPainel').addEventListener('click', fecharAjuda);
 $('fundo').addEventListener('click', fecharAjuda);
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('painel').classList.contains('aberto')) fecharAjuda(); });
