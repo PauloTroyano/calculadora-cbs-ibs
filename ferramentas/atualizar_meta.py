@@ -1,11 +1,12 @@
 """Completa dados/meta.json com a origem e as datas de atualização/verificação.
 
 dataAtualizacao só muda quando alguma tabela (fora o meta.json) mudou de fato.
-Uso: atualizar_meta.py <meta anterior> <meta novo> <hoje> <commit oficial> <versão da API>
+Uso: atualizar_meta.py <meta anterior> <meta novo> <hoje> <commit oficial> <versão da API> [hora HH:MM]
 """
 import json, os, sys, glob, hashlib
 
 ANTERIOR, NOVO, HOJE, COMMIT, VERSAO = sys.argv[1:6]
+HORA = sys.argv[6] if len(sys.argv) > 6 else None
 pasta_nova = os.path.dirname(NOVO)
 pasta_ant = os.path.dirname(ANTERIOR)
 
@@ -20,12 +21,14 @@ def resumo(pasta):
 
 ant = json.load(open(ANTERIOR, encoding='utf-8')) if os.path.exists(ANTERIOR) else {}
 novo = json.load(open(NOVO, encoding='utf-8'))
-ant_meta_sem_datas = {k: v for k, v in ant.items() if k not in ('dataExportacao', 'dataAtualizacao', 'ultimaVerificacao', 'fonteCommit', 'versaoApi')}
+ant_meta_sem_datas = {k: v for k, v in ant.items() if k not in ('dataExportacao', 'dataAtualizacao', 'ultimaVerificacao', 'horaVerificacao', 'fonteCommit', 'versaoApi')}
 novo_meta_sem_datas = {k: v for k, v in novo.items() if k != 'dataExportacao'}
 mudou = resumo(pasta_nova) != resumo(pasta_ant) or ant_meta_sem_datas != novo_meta_sem_datas
 novo['fonteCommit'] = COMMIT
 novo['versaoApi'] = VERSAO
 novo['ultimaVerificacao'] = HOJE
+if HORA:
+    novo['horaVerificacao'] = HORA
 novo['dataAtualizacao'] = HOJE if mudou or 'dataAtualizacao' not in ant else ant['dataAtualizacao']
 json.dump(novo, open(NOVO, 'w', encoding='utf-8'), ensure_ascii=False, separators=(',', ':'))
 print(('Tabelas mudaram' if mudou else 'Tabelas sem mudança') + f"; atualização {novo['dataAtualizacao']}, verificação {HOJE}")

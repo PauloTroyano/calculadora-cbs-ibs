@@ -10,6 +10,7 @@ RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 TRAB="${1:-$(mktemp -d)}"
 API_DIR="$TRAB/calculadora-rtc-regime-regular"
 HOJE="$(TZ=America/Sao_Paulo date +%F)"
+HORA="$(TZ=America/Sao_Paulo date +%H:%M)"
 PORTA="${PORTA:-8080}"
 
 echo "::group::Baixar a calculadora oficial"
@@ -79,5 +80,5 @@ else
 fi
 echo "::endgroup::"
 
-python3 ferramentas/atualizar_meta.py "$TRAB/dados-anterior/meta.json" dados/meta.json "$HOJE" "$COMMIT" "$VERSAO_API"
+python3 ferramentas/atualizar_meta.py "$TRAB/dados-anterior/meta.json" dados/meta.json "$HOJE" "$COMMIT" "$VERSAO_API" "$HORA"
 echo "Atualização concluída."

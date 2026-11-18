@@ -220,8 +220,7 @@
   </nav>
 
   <footer>
-    <p>Protótipo, não substitui orientação contábil. Regras e tabelas: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">calculadora oficial da Receita Federal</a> (licença MIT), <span id="versao"></span>.
-    O cálculo foi conferido contra a API oficial em todas as classificações que esta página calcula; as demais aparecem marcadas como "não calculada".</p>
+    <p>Protótipo, não substitui orientação contábil. Regras e tabelas: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">calculadora oficial da Receita Federal</a>, <span id="versao"></span>. O cálculo foi conferido contra a API oficial em todas as classificações que esta página calcula.</p>
     <p id="atualizacao"></p>
   </footer>
 </main>
@@ -381,9 +380,9 @@ async function carregar() {
   const m = dados.meta;
   $('versao').textContent = `base ${m.versaoBase} de ${br(m.dataVersaoBase)}`;
   $('atualizacao').textContent = `Tabelas atualizadas em ${br(m.dataAtualizacao || m.dataExportacao)}`
-    + ` · última verificação automática em ${br(m.ultimaVerificacao || m.dataExportacao)}`
+    + ` · última verificação automática em ${br(m.ultimaVerificacao || m.dataExportacao)}${m.horaVerificacao ? ` às ${m.horaVerificacao}` : ''}`
     + (m.versaoApi ? ` · calculadora oficial v${m.versaoApi}` : '')
-    + '. A verificação roda todo dia às 05:00 (Brasília).';
+    + '.';
 }
 
 function preencherUfs() {
