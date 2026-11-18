@@ -58,6 +58,19 @@
   .nao { color: var(--suave); }
   .tag { display:inline-block; font-size:.72rem; padding:1px 6px; border-radius:6px; background: var(--aviso-claro); color: var(--aviso); margin-left:4px; }
   footer a { color: inherit; }
+  .rotulo-ajuda { display: flex; align-items: center; gap: 6px; }
+  .ajuda { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--destaque); background: var(--card); color: var(--destaque); font: 700 .8rem system-ui, sans-serif; cursor: pointer; line-height: 1; padding: 0; flex: none; }
+  .ajuda:hover, .ajuda:focus-visible { background: var(--destaque); color: var(--card); }
+  .painel { position: fixed; top: 0; right: 0; height: 100%; width: min(380px, 100%); background: var(--card); border-left: 1px solid var(--borda); box-shadow: -8px 0 24px rgba(0,0,0,.12); padding: 20px; overflow-y: auto; transform: translateX(100%); transition: transform .2s ease; z-index: 10; }
+  .painel.aberto { transform: translateX(0); }
+  .painel h2 { font-size: 1.1rem; margin: 0 32px 12px 0; }
+  .painel h3 { font-size: .95rem; margin: 18px 0 6px; color: var(--destaque); }
+  .painel p, .painel li { font-size: .9rem; margin: 6px 0; }
+  .painel ul { padding-left: 18px; margin: 6px 0; }
+  .painel code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+  .painel .fechar { position: absolute; top: 14px; right: 14px; width: 30px; height: 30px; border: 1px solid var(--borda); border-radius: 8px; background: var(--bg); color: var(--texto); font-size: 1.1rem; cursor: pointer; }
+  .fundo { position: fixed; inset: 0; background: rgba(0,0,0,.25); z-index: 9; }
+  @media (prefers-reduced-motion: reduce) { .painel { transition: none; } }
   footer { margin-top: 24px; font-size: .8rem; color: var(--suave); }
 </style>
 </head>
@@ -68,17 +81,17 @@
 
   <div class="grade">
     <form class="card" id="form" autocomplete="off">
-      <label>O que está sendo vendido?</label>
+      <div class="rotulo-ajuda"><label>O que está sendo vendido?</label><button type="button" class="ajuda" data-ajuda="codigo" aria-label="O que é NCM e NBS?" title="O que é NCM e NBS?">?</button></div>
       <div class="abas" role="group">
-        <button type="button" data-tipo="ncm" aria-pressed="true">Produto (NCM)</button>
-        <button type="button" data-tipo="nbs" aria-pressed="false">Serviço (NBS)</button>
+        <button type="button" data-tipo="ncm" aria-pressed="true">Produtos - NCM</button>
+        <button type="button" data-tipo="nbs" aria-pressed="false">Serviços - NBS</button>
       </div>
 
       <label for="codigo"><span id="rotuloCodigo">Código NCM</span> <span class="dica">(só números)</span></label>
       <input id="codigo" inputmode="numeric" placeholder="ex.: 84713012" required>
       <div class="info" id="infoCodigo"></div>
 
-      <label for="busca">Classificação tributária (cClassTrib)</label>
+      <div class="rotulo-ajuda"><label for="busca">Classificação tributária (cClassTrib)</label><button type="button" class="ajuda" data-ajuda="classificacao" aria-label="O que é a classificação tributária?" title="O que é a classificação tributária?">?</button></div>
       <input id="busca" placeholder="Filtrar por código ou descrição, ex.: alimentação, saúde, 200003">
       <select id="classTrib" size="6" required></select>
       <div class="info" id="infoClass"></div>
@@ -128,6 +141,42 @@
     O cálculo foi conferido contra a API oficial em todas as classificações que esta página calcula; as demais aparecem marcadas como "não calculada".</p>
   </footer>
 </main>
+
+<div class="fundo" id="fundo" hidden></div>
+<aside class="painel" id="painel" role="dialog" aria-modal="true" aria-labelledby="painelTitulo" aria-hidden="true">
+  <button type="button" class="fechar" id="fecharPainel" aria-label="Fechar">×</button>
+  <div id="ajuda-codigo" hidden>
+    <h2 id="painelTitulo">Produtos (NCM) e Serviços (NBS)</h2>
+    <p>Todo item vendido é identificado por um código oficial. É ele que diz à calculadora o que está sendo vendido.</p>
+    <h3>Produtos - NCM</h3>
+    <p>A <b>NCM</b> (Nomenclatura Comum do Mercosul) é o código de <b>8 dígitos</b> das mercadorias. É o mesmo código que já aparece na nota fiscal de produto (NF-e e NFC-e).</p>
+    <ul>
+      <li><code>10063021</code> arroz polido</li>
+      <li><code>84713012</code> notebook</li>
+    </ul>
+    <h3>Serviços - NBS</h3>
+    <p>A <b>NBS</b> (Nomenclatura Brasileira de Serviços) é o código de <b>9 dígitos</b> dos serviços e dos bens intangíveis. Com a reforma, ela passa a ser obrigatória na nota fiscal de serviço (NFS-e).</p>
+    <ul>
+      <li><code>122011200</code> educação (pré-escola)</li>
+    </ul>
+    <h3>Por que isso importa</h3>
+    <p>A calculadora cruza o código com a <b>classificação tributária</b>. Muitas reduções só valem para itens listados nos anexos da LC 214/2025. Por exemplo, a redução de 100% da cesta básica vale só para os alimentos do Anexo I. Se o código não estiver no anexo, a página avisa.</p>
+    <p>Não sabe o código? Ele costuma estar no cadastro do produto no seu sistema ou na nota do fornecedor.</p>
+  </div>
+  <div id="ajuda-classificacao" hidden>
+    <h2>Classificação tributária (cClassTrib)</h2>
+    <p>É um código de <b>6 dígitos</b> criado pela reforma. Ele diz <b>qual regra</b> se aplica à operação: tributação integral, alíquota reduzida, isenção, diferimento etc.</p>
+    <p>Os 3 primeiros dígitos são o <b>CST</b> (situação tributária):</p>
+    <ul>
+      <li><code>000</code> tributação integral</li>
+      <li><code>200</code> alíquota reduzida (ex.: <code>200003</code> alimentos do Anexo I, <code>200028</code> educação)</li>
+      <li><code>400</code> e <code>410</code> isenção, imunidade e não incidência</li>
+      <li><code>510</code> diferimento</li>
+    </ul>
+    <p>Na dúvida, comece por <code>000001</code> (tributação integral). Depois use a busca para procurar o seu setor, por exemplo "saúde", "alimentação" ou "transporte".</p>
+    <p>Itens marcados com "(não calculada)" usam regras especiais que esta página ainda não calcula.</p>
+  </div>
+</aside>
 
 <script src="calc.js"></script>
 <script>
@@ -266,6 +315,29 @@ $('classTrib').addEventListener('change', mostrarClasse);
 $('uf').addEventListener('change', preencherMunicipios);
 $('data').addEventListener('change', () => { verificarReferencia(); consultarCodigo(); });
 $('form').addEventListener('submit', calcular);
+
+// ---------- Painel de ajuda ----------
+let ultimoFoco = null;
+function abrirAjuda(qual) {
+  ultimoFoco = document.activeElement;
+  document.querySelectorAll('[id^="ajuda-"]').forEach((el) => { el.hidden = el.id !== 'ajuda-' + qual; });
+  document.querySelectorAll('#painel h2').forEach((h) => h.removeAttribute('id'));
+  $('ajuda-' + qual).querySelector('h2').id = 'painelTitulo';
+  $('painel').classList.add('aberto');
+  $('painel').setAttribute('aria-hidden', 'false');
+  $('fundo').hidden = false;
+  $('fecharPainel').focus();
+}
+function fecharAjuda() {
+  $('painel').classList.remove('aberto');
+  $('painel').setAttribute('aria-hidden', 'true');
+  $('fundo').hidden = true;
+  if (ultimoFoco) ultimoFoco.focus();
+}
+document.querySelectorAll('.ajuda').forEach((b) => b.addEventListener('click', () => abrirAjuda(b.dataset.ajuda)));
+$('fecharPainel').addEventListener('click', fecharAjuda);
+$('fundo').addEventListener('click', fecharAjuda);
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && $('painel').classList.contains('aberto')) fecharAjuda(); });
 
 (async () => {
   $('data').value = hoje();
