@@ -136,6 +136,7 @@
   .linha-tempo li { border-left: 3px solid var(--destaque); padding: 2px 0 10px 12px; margin: 0; }
   .linha-tempo li b:first-child { display: block; color: var(--destaque); }
   .exemplo td, .exemplo th { font-size: .8rem; padding: 5px 4px; }
+  .sub-rotulo { font-size: .78rem; font-weight: 600; color: var(--suave); margin: 10px 0 4px; }
   .selecionada { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--destaque); background: var(--destaque-claro); border-radius: 6px; font-size: .88rem; }
   .selecionada:empty { display: none; }
   .selecionada span { display: block; font-size: .72rem; color: var(--suave); text-transform: uppercase; letter-spacing: .03em; }
@@ -162,6 +163,9 @@
 
       <div class="rotulo-ajuda rotulo-codigo"><span class="rotulo-ajuda"><label for="classTrib">Classificação tributária</label><button type="button" class="ajuda" data-ajuda="classificacao" aria-label="O que é a classificação tributária?" title="O que é a classificação tributária?">?</button></span><button type="button" class="link-busca" id="abrirBuscaClasse">🔍 Busca por nome</button></div>
       <label class="chave"><input type="checkbox" id="soValidas" role="switch"><span class="trilho" aria-hidden="true"></span><span id="rotuloValidas">Mostrar só as que valem para este código</span></label>
+      <label class="sub-rotulo" for="cst">Situação tributária (CST)</label>
+      <select id="cst"></select>
+      <label class="sub-rotulo" for="classTrib">Classificação</label>
       <select id="classTrib" required></select>
       <div class="selecionada" id="selClass"></div>
       <div class="contagem" id="contagem"></div>
@@ -341,7 +345,8 @@
       <li><code>510</code> diferimento</li>
     </ul>
     <p><b>🔍 Busca por nome:</b> abre a busca ao lado. Digite partes do nome em qualquer ordem, por exemplo "serviço saúde" ou "alimentação humana", e clique na classificação para escolher.</p>
-    <p><b>Chave "Mostrar só as que valem":</b> depois de digitar o NCM ou NBS completo, ligue a chave para ver só as classificações que podem ser usadas com aquele código. </p>
+    <p><b>Campo CST:</b> escolha primeiro a situação tributária (por exemplo 200, alíquota reduzida) para a lista de classificações mostrar só as daquele grupo. "Todos os CST" mostra todas.</p>
+    <p><b>Chave "Mostrar só as que valem":</b> depois de digitar o NCM ou NBS completo, ligue a chave para ver só os CST e as classificações que podem ser usados com aquele código.</p>
     <p><b>Estrelas (★):</b> com o código digitado, as sugestões sobem para o topo da lista. "Benefício da lei" são as classificações do anexo da LC 214/2025 que inclui o seu código, como a cesta básica para o arroz. "Padrão, mais comum" é a <code>000001</code>, tributação integral, usada quando o item não tem benefício. É o caso de um notebook.</p>
     <p>Na dúvida, comece por <code>000001</code> (tributação integral). Depois use a busca para procurar o seu setor, por exemplo "saúde", "alimentação" ou "transporte".</p>
     <p>Itens marcados com "(não calculada)" usam regras especiais que esta página ainda não calcula.</p>
@@ -419,8 +424,23 @@ function renderClasses() {
   const cod = codigoCompleto();
   const filtrar = cod && $('soValidas').checked;
   const atual = $('classTrib').value;
-  let lista = classes.map((c) => ({ c, v: cod ? vinculo(c, cod) : { valida: true } }))
+  const mudouCodigo = cod !== ultimoCodigo;
+  ultimoCodigo = cod;
+  const validas = classes.map((c) => ({ c, v: cod ? vinculo(c, cod) : { valida: true } }))
     .filter(({ v }) => !(filtrar && !v.valida));
+  // Campo CST: mostra só os CSTs que sobraram depois da chave; ao trocar de código, volta para "todos"
+  const porCst = new Map();
+  validas.forEach(({ c, v }) => {
+    const g = porCst.get(c.cst) || { desc: c.cstDescricao, n: 0, estrela: false };
+    g.n++; if (v.especifica || (cod && c.codigo === PADRAO)) g.estrela = true;
+    porCst.set(c.cst, g);
+  });
+  const cstAtual = mudouCodigo || !porCst.has($('cst').value) ? '' : $('cst').value;
+  $('cst').innerHTML = `<option value="">Todos os CST (${porCst.size})</option>`
+    + [...porCst.entries()].sort(([a], [b]) => a.localeCompare(b))
+      .map(([k, g]) => `<option value="${k}">${g.estrela ? '★ ' : ''}${k} · ${esc(g.desc)} (${g.n})</option>`).join('');
+  $('cst').value = cstAtual;
+  let lista = cstAtual ? validas.filter(({ c }) => c.cst === cstAtual) : validas;
   // Com o código digitado, as sugestões vêm no topo, com estrela:
   // 1) as específicas do anexo da LC 214/2025 que inclui o código (benefício da lei);
   // 2) a 000001, tributação integral, que é a regra padrão e a mais comum quando não há benefício.
@@ -432,14 +452,12 @@ function renderClasses() {
     return `<option value="${c.codigo}" title="${esc(c.descricao)}" ${c.suportado ? '' : 'class="nao"'}>${peso(item) ? '★ ' : ''}${c.codigo} · ${esc(c.descricao)}${rotulo}${c.suportado ? '' : ' (não calculada)'}</option>`;
   }).join('');
   // Ao trocar de código, já deixa selecionada a primeira sugestão
-  const mudouCodigo = cod !== ultimoCodigo;
-  ultimoCodigo = cod;
   if (!mudouCodigo && lista.some(({ c }) => c.codigo === atual)) $('classTrib').value = atual;
   else if (lista.length) $('classTrib').value = lista[0].c.codigo;
-  const especificas = lista.filter(({ v }) => v.especifica).length;
+  const especificas = validas.filter(({ v }) => v.especifica).length;
   $('contagem').textContent = !lista.length
     ? 'Nenhuma classificação válida para este código.'
-    : `${lista.length} de ${classes.length} classificações` + (filtrar ? ' valem para este código.' : '.')
+    : `${lista.length} de ${classes.length} classificações` + (cstAtual ? ` no CST ${cstAtual}` : '') + (filtrar ? ' valem para este código.' : '.')
       + (cod ? (especificas
         ? ` ★ no topo: ${especificas} com benefício da lei para este código e a 000001 (padrão).`
         : ' Este código não tem benefício específico na lei: o mais comum é a ★ 000001, tributação integral.') : '');
@@ -819,6 +837,7 @@ document.querySelectorAll('.abas button').forEach((b) => b.addEventListener('cli
 }));
 $('codigo').addEventListener('input', consultarCodigo);
 $('soValidas').addEventListener('change', renderClasses);
+$('cst').addEventListener('change', renderClasses);
 $('classTrib').addEventListener('change', mostrarClasse);
 $('uf').addEventListener('change', preencherMunicipios);
 $('data').addEventListener('change', () => { verificarReferencia(); consultarCodigo(); });
@@ -944,9 +963,12 @@ $('buscaClasse').addEventListener('input', buscarClasse);
 $('classeResultados').addEventListener('click', (e) => {
   const b = e.target.closest('button[data-classe]');
   if (!b) return;
+  const escolhida = classes.find((x) => x.codigo === b.dataset.classe);
+  // se a chave estiver ligada e a escolhida não for válida, desliga a chave para poder selecioná-la
+  const cod = codigoCompleto();
+  if (escolhida && cod && $('soValidas').checked && !vinculo(escolhida, cod).valida) $('soValidas').checked = false;
   renderClasses();
-  // se a chave estiver ligada e a escolhida não estiver na lista, desliga a chave para poder selecioná-la
-  if (![...$('classTrib').options].some((o) => o.value === b.dataset.classe)) { $('soValidas').checked = false; renderClasses(); }
+  if (escolhida) { $('cst').value = escolhida.cst; renderClasses(); }
   $('classTrib').value = b.dataset.classe;
   mostrarClasse();
   ultimoFoco = $('classTrib');
