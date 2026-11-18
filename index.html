@@ -58,6 +58,16 @@
   .nao { color: var(--suave); }
   .tag { display:inline-block; font-size:.72rem; padding:1px 6px; border-radius:6px; background: var(--aviso-claro); color: var(--aviso); margin-left:4px; }
   footer a { color: inherit; }
+  #comparativo { margin-top: 18px; border-top: 1px solid var(--borda); padding-top: 14px; }
+  .comp-titulo { font-size: 1rem; margin: 0 0 6px; }
+  .comp-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 10px 0; }
+  .comp-campos label { margin: 0 0 4px; font-size: .78rem; }
+  .comp-campos .dica { font-size: .72rem; color: var(--suave); margin-top: 2px; }
+  table.comp td:nth-child(2), table.comp th:nth-child(2) { white-space: nowrap; }
+  table.comp tr.grupo td { font-weight: 600; }
+  table.comp tr.sub td { font-size: .82rem; color: var(--suave); padding-top: 3px; padding-bottom: 3px; border-bottom: 0; }
+  table.comp tr.sub td:first-child { padding-left: 16px; }
+  .caixa.ok-caixa { background: var(--destaque-claro); color: var(--destaque); }
   .chave { display: flex; align-items: center; gap: 10px; font-weight: 400; font-size: .88rem; margin: 10px 0 8px; cursor: pointer; user-select: none; }
   .chave input { position: absolute; opacity: 0; width: 1px; height: 1px; }
   .chave .trilho { position: relative; flex: none; width: 38px; height: 22px; border-radius: 11px; background: var(--borda); transition: background .15s; }
@@ -250,7 +260,7 @@ let classes = [];
 let tipo = 'ncm';
 
 async function carregar() {
-  const nomes = ['meta', 'classes', 'ncm', 'nbs', 'ufs'];
+  const nomes = ['meta', 'classes', 'ncm', 'nbs', 'ufs', 'impostos-atuais'];
   const jsons = await Promise.all(nomes.map((n) => fetch(`dados/${n}.json`).then((r) => { if (!r.ok) throw new Error(n); return r.json(); })));
   nomes.forEach((n, i) => { dados[n] = jsons[i]; });
   classes = dados.classes;
@@ -392,7 +402,8 @@ function calcular(ev) {
   const rodape = `<p class="info">CST ${esc(c.cst)} · cClassTrib ${esc(c.codigo)} · ${esc(c.descricao)}<br>${esc($('municipio').selectedOptions[0].text)}/${esc($('uf').value)} · ${entrada.data.split('-').reverse().join('/')}</p>`;
   if (r.semDestaque) {
     $('resultado').innerHTML = `<div class="total"><div class="rotulo">Tributos sobre ${brl(r.base)}</div><div class="valor">${brl(0)}</div>
-      <div class="rotulo">${esc(c.cstDescricao)}: não há destaque de CBS nem de IBS nesta operação.</div></div>${rodape}`;
+      <div class="rotulo">${esc(c.cstDescricao)}: não há destaque de CBS nem de IBS nesta operação.</div></div>${rodape}<div id="comparativo"></div>`;
+    iniciarComparativo(entrada, c, r);
     return;
   }
   const linhas = r.tributos.map((t) => `<tr><td>${t.nome}</td><td>${pct(t.aliquota)}</td><td>${t.reducao ? pct(t.reducao) : '—'}</td><td>${pct(t.efetiva)}</td><td>${brl(t.valor)}</td></tr>`).join('');
@@ -413,7 +424,94 @@ function calcular(ev) {
       <tfoot><tr><td>Total</td><td></td><td></td><td></td><td>${brl(r.total)}</td></tr></tfoot>
     </table>
     ${rodape}
-    <details><summary>Memória de cálculo</summary>${memoria}</details>`;
+    <details><summary>Memória de cálculo</summary>${memoria}</details>
+    <div id="comparativo"></div>`;
+  iniciarComparativo(entrada, c, r);
+}
+
+// ---------- Comparativo com os impostos atuais (estimativa) ----------
+let ctxComp = null;
+function iniciarComparativo(entrada, classe, r) {
+  const at = dados['impostos-atuais'];
+  const uf = $('uf').value;
+  ctxComp = { entrada, classe, r };
+  const servico = entrada.tipo === 'nbs';
+  $('comparativo').innerHTML = `
+    <h3 class="comp-titulo">Comparativo com os impostos atuais <span class="tag">estimativa</span></h3>
+    <p class="info">Compara o que se paga hoje (${servico ? 'ISS + PIS/Cofins' : 'ICMS + PIS/Cofins + IPI'}) com a CBS/IBS. Os impostos atuais usam alíquotas gerais e <b>não consideram benefícios, substituição tributária nem Simples Nacional</b>. Ajuste abaixo se o seu caso for diferente.</p>
+    <div class="comp-campos">
+      ${servico
+        ? `<div><label for="cIss">ISS do município (%)</label><input id="cIss" inputmode="decimal" value="${String(at.iss.padrao).replace('.', ',')}"><div class="dica">entre ${at.iss.minimo}% e ${at.iss.maximo}%</div></div>`
+        : `<div><label for="cIcms">ICMS interno ${uf} (%)</label><input id="cIcms" inputmode="decimal" value="${String(at.icmsInterno.aliquotas[uf] ?? 18).replace('.', ',')}"><div class="dica">alíquota geral do estado</div></div>
+           <div><label for="cIpi">IPI (%)</label><input id="cIpi" inputmode="decimal" value="0"><div class="dica">só indústria/importador; veja a TIPI</div></div>`}
+      <div><label for="cPis">PIS/Cofins (regime)</label><select id="cPis">
+        <option value="naoCumulativo">Real · 9,25%</option>
+        <option value="cumulativo">Presumido · 3,65%</option>
+        <option value="zero">Zero / isento</option>
+      </select></div>
+    </div>
+    <div id="compTabela"></div>`;
+  // Alimentos do Anexo I (cesta básica) hoje costumam ter PIS/Cofins zero (Lei 10.925/2004)
+  if (classe.codigo === '200003') $('cPis').value = 'zero';
+  $('comparativo').querySelectorAll('input, select').forEach((el) => el.addEventListener('input', atualizarComparativo));
+  atualizarComparativo();
+}
+
+function atualizarComparativo() {
+  const { entrada, classe, r } = ctxComp;
+  const at = dados['impostos-atuais'];
+  const valor = entrada.valor;
+  const servico = entrada.tipo === 'nbs';
+  const lerPct = (id) => { const v = num($(id)?.value ?? 0); return Number.isFinite(v) && v >= 0 ? v : 0; };
+  const regime = $('cPis').value;
+  const aliqPis = regime === 'zero' ? 0 : at.pisCofins[regime];
+  const atuais = [];
+  if (servico) {
+    const iss = lerPct('cIss');
+    atuais.push(['ISS', iss, valor * iss / 100]);
+    atuais.push(['PIS/Cofins', aliqPis, valor * aliqPis / 100]);
+  } else {
+    const icms = lerPct('cIcms'), ipi = lerPct('cIpi');
+    const vIcms = valor * icms / 100;
+    atuais.push(['ICMS', icms, vIcms]);
+    // PIS/Cofins sem o ICMS na base (Tema 69 do STF)
+    atuais.push(['PIS/Cofins (base sem ICMS)', aliqPis, (valor - vIcms) * aliqPis / 100]);
+    if (ipi) atuais.push(['IPI (por fora)', ipi, valor * ipi / 100]);
+  }
+  const totalAtual = atuais.reduce((s, [, , v]) => s + v, 0);
+  const cargaAtual = totalAtual / valor * 100;
+
+  // Reforma: o cálculo do ano da operação e a estimativa com as alíquotas plenas
+  const cargaAno = r.total / valor * 100;
+  const rp = at.reformaPlena;
+  let plena = 0;
+  if (classe.destacaCbsIbs) {
+    const base = valor * (classe.fatorBase ?? 1);
+    const z = classe.aliquotaZero ? 0 : 1;
+    plena = base * z * (rp.cbs * (1 - classe.reducao[0] / 100) + rp.ibs * (1 - classe.reducao[1] / 100)) / 100;
+    if (classe.diferimento) plena = 0;
+  }
+  const cargaPlena = plena / valor * 100;
+  const dif = cargaPlena - cargaAtual;
+  const ano = Number(entrada.data.slice(0, 4));
+
+  $('compTabela').innerHTML = `
+    <table class="comp">
+      <thead><tr><th>Cenário</th><th>Carga</th><th>Valor</th></tr></thead>
+      <tbody>
+        <tr class="grupo"><td>Impostos atuais (estimativa)</td><td>${pct(cargaAtual.toFixed(2))}</td><td>${brl(totalAtual)}</td></tr>
+        ${atuais.map(([n, a, v]) => `<tr class="sub"><td>${n} · ${pct(a)}</td><td></td><td>${brl(v)}</td></tr>`).join('')}
+        <tr class="grupo"><td>CBS + IBS em ${ano} (cálculo acima)</td><td>${pct(cargaAno.toFixed(2))}</td><td>${brl(r.total)}</td></tr>
+        <tr class="grupo"><td>CBS + IBS plenos, a partir de 2033 (estimativa ${pct(rp.cbs + rp.ibs)})</td><td>${pct(cargaPlena.toFixed(2))}</td><td>${brl(plena)}</td></tr>
+      </tbody>
+    </table>
+    <div class="caixa ${dif > 0.005 ? 'aviso' : 'ok-caixa'}">Com as alíquotas plenas, a carga ${Math.abs(dif) < 0.005 ? 'fica igual à' : `<b>${dif > 0 ? 'sobe' : 'cai'} ${Math.abs(dif).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ponto${Math.abs(dif) >= 2 ? 's' : ''} percentua${Math.abs(dif) >= 2 ? 'is' : 'l'}</b> em relação à`} estimativa atual (${dif > 0 ? '+' : ''}${brl(plena - totalAtual)}).</div>
+    ${ano < 2033 ? `<p class="info">Entre 2026 e 2032 os impostos atuais e a CBS/IBS convivem em transição: em 2026 a CBS/IBS é um teste de 1%, compensável com PIS/Cofins. A comparação justa é com a linha "plenos".</p>` : ''}
+    ${classe.reducao.some((x) => x > 0) ? '<p class="info">Esta classificação tem benefício na reforma. Hoje o mesmo item pode ter benefícios de ICMS ou PIS/Cofins (como a cesta básica, com PIS/Cofins zero); se for o caso, ajuste os campos acima.</p>' : ''}
+    <details><summary>Fontes e premissas</summary>
+      <p>${esc(at.icmsInterno.fonte)}</p><p>${esc(at.pisCofins.fonte)}</p><p>${esc(at.iss.fonte)}</p><p>${esc(at.reformaPlena.fonte)}</p>
+      <p>Não considera créditos de etapas anteriores, que existem no regime atual não cumulativo e na reforma. ${esc(at.observacao)}</p>
+    </details>`;
 }
 
 document.querySelectorAll('.abas button').forEach((b) => b.addEventListener('click', () => {

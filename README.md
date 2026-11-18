@@ -18,6 +18,22 @@ As regras e tabelas vêm da calculadora oficial da Receita Federal,
 
 Resultado da última validação: 328 cálculos iguais, 0 diferentes; 600 vínculos iguais, 0 diferentes.
 
+## Comparativo com os impostos atuais (estimativa)
+
+Abaixo do resultado, a página compara a carga de hoje com a CBS/IBS do ano da operação e com a CBS/IBS plena (a partir de 2033).
+As alíquotas atuais ficam em `dados/impostos-atuais.json` e podem ser ajustadas na tela:
+
+- **ICMS:** alíquota interna geral de cada UF em 2026, conforme a legislação estadual, compilada em
+  [Contmatic](https://simplifique.contmatic.com.br/blogs/tabela-icms-2026) e [Focus NFe](https://focusnfe.com.br/blog/tabela-icms/).
+  Não considera benefícios, substituição tributária nem alíquotas específicas por produto.
+- **PIS/Cofins:** 9,25% no regime não cumulativo (Leis 10.637/2002 e 10.833/2003) ou 3,65% no cumulativo (Lei 9.718/1998),
+  com o ICMS fora da base (STF, Tema 69). Para alimentos do Anexo I (cesta básica), a tela já começa com alíquota zero (Lei 10.925/2004).
+- **IPI:** informado pelo usuário (consulte a [TIPI](https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/legislacao/documentos-e-arquivos/tipi)).
+- **ISS:** 5% por padrão, ajustável entre 2% e 5% (LC 116/2003 e LC 157/2016).
+- **CBS/IBS plenos:** 26,5% (CBS 8,8% + IBS 17,7%), teto de referência da LC 214/2025. A Resolução CGIBS nº 14/2026 projetou 27,91% para 2027.
+
+Não considera créditos de etapas anteriores nem o Simples Nacional.
+
 ## O que ainda não calcula
 
 - Imposto Seletivo, monofasia de combustíveis, alíquotas fixas/setoriais específicas e classificações que exigem dados extras da operação.
