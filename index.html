@@ -59,7 +59,18 @@
   .tag { display:inline-block; font-size:.72rem; padding:1px 6px; border-radius:6px; background: var(--aviso-claro); color: var(--aviso); margin-left:4px; }
   footer a { color: inherit; }
   #comparativo { margin-top: 18px; border-top: 1px solid var(--borda); padding-top: 14px; }
-  .comp-titulo { font-size: 1rem; margin: 0 0 6px; }
+  .comp-titulo { font-size: 1rem; font-weight: 700; display: block; }
+  .comp-det > summary { list-style: none; cursor: pointer; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; align-items: center; padding: 10px 12px; border: 1px solid var(--borda); border-radius: 10px; background: var(--bg); }
+  .comp-det > summary::-webkit-details-marker { display: none; }
+  .comp-det > summary:hover { border-color: var(--destaque); }
+  .comp-resumo { grid-column: 1; font-size: .88rem; color: var(--texto); }
+  .comp-abrir { grid-column: 2; grid-row: 1 / span 2; font-size: .8rem; color: var(--destaque); font-weight: 600; white-space: nowrap; }
+  .comp-abrir::after { content: "Ver detalhes ▾"; }
+  .comp-det[open] .comp-abrir::after { content: "Recolher ▴"; }
+  .comp-det[open] > summary { margin-bottom: 8px; }
+  .comp-dif { display: inline-block; margin-left: 4px; padding: 1px 7px; border-radius: 6px; font-weight: 700; font-size: .8rem; background: var(--bg); }
+  .comp-dif.sobe { background: var(--aviso-claro); color: var(--aviso); }
+  .comp-dif.cai { background: var(--destaque-claro); color: var(--destaque); }
   .comp-campos { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin: 10px 0; }
   .comp-campos label { margin: 0 0 4px; font-size: .78rem; }
   .comp-campos .dica { font-size: .72rem; color: var(--suave); margin-top: 2px; }
@@ -433,6 +444,7 @@ function calcular(ev) {
 
 // ---------- Comparativo com os impostos atuais (estimativa) ----------
 let ctxComp = null;
+let compAberto = false; // lembra se a pessoa abriu o comparativo
 function iniciarComparativo(entrada, classe, r) {
   const at = dados['impostos-atuais'];
   const uf = $('uf').value;
@@ -448,7 +460,12 @@ function iniciarComparativo(entrada, classe, r) {
   }
   const servico = entrada.tipo === 'nbs';
   $('comparativo').innerHTML = `
-    <h3 class="comp-titulo">Comparativo com os impostos atuais <span class="tag">estimativa</span></h3>
+   <details class="comp-det" id="compDet" ${compAberto ? 'open' : ''}>
+    <summary>
+      <span class="comp-titulo">Comparativo com os impostos atuais <span class="tag">estimativa</span></span>
+      <span class="comp-resumo" id="compResumo"></span>
+      <span class="comp-abrir" aria-hidden="true"></span>
+    </summary>
     <p class="info">Compara o que se paga hoje (${servico ? 'ISS + PIS/Cofins' : 'ICMS + PIS/Cofins + IPI'}) com a CBS/IBS. Os impostos atuais usam alíquotas gerais e <b>não consideram benefícios, substituição tributária nem Simples Nacional</b>. Ajuste abaixo se o seu caso for diferente.</p>
     <div class="comp-campos">
       ${servico
@@ -461,7 +478,9 @@ function iniciarComparativo(entrada, classe, r) {
         <option value="zero">Zero / isento</option>
       </select></div>
     </div>
-    <div id="compTabela"></div>`;
+    <div id="compTabela"></div>
+   </details>`;
+  $('compDet').addEventListener('toggle', () => { compAberto = $('compDet').open; });
   // Alimentos do Anexo I (cesta básica) hoje costumam ter PIS/Cofins zero (Lei 10.925/2004)
   if (classe.codigo === '200003') $('cPis').value = 'zero';
   $('comparativo').querySelectorAll('input, select').forEach((el) => el.addEventListener('input', atualizarComparativo));
@@ -506,6 +525,9 @@ function atualizarComparativo() {
   const dif = cargaPlena - cargaAtual;
   const ano = Number(entrada.data.slice(0, 4));
 
+  const fmtPP = (x) => Math.abs(x).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+  $('compResumo').innerHTML = `Hoje <b>${pct(cargaAtual.toFixed(2))}</b> (${brl(totalAtual)}) → CBS+IBS plenos <b>${pct(cargaPlena.toFixed(2))}</b> (${brl(plena)})
+    <span class="comp-dif ${dif > 0.005 ? 'sobe' : dif < -0.005 ? 'cai' : ''}">${Math.abs(dif) < 0.005 ? 'igual' : `${dif > 0 ? '▲ +' : '▼ −'}${fmtPP(dif)} p.p.`}</span>`;
   $('compTabela').innerHTML = `
     <table class="comp">
       <thead><tr><th>Cenário</th><th>Carga</th><th>Valor</th></tr></thead>
