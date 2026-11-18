@@ -58,6 +58,16 @@
   .nao { color: var(--suave); }
   .tag { display:inline-block; font-size:.72rem; padding:1px 6px; border-radius:6px; background: var(--aviso-claro); color: var(--aviso); margin-left:4px; }
   footer a { color: inherit; }
+  .chave { display: flex; align-items: center; gap: 10px; font-weight: 400; font-size: .88rem; margin: 10px 0 8px; cursor: pointer; user-select: none; }
+  .chave input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .chave .trilho { position: relative; flex: none; width: 38px; height: 22px; border-radius: 11px; background: var(--borda); transition: background .15s; }
+  .chave .trilho::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--card); transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .chave input:checked + .trilho { background: var(--destaque); }
+  .chave input:checked + .trilho::after { transform: translateX(16px); }
+  .chave input:focus-visible + .trilho { outline: 2px solid var(--destaque); outline-offset: 2px; }
+  .chave input:disabled ~ span { opacity: .55; }
+  .chave:has(input:disabled) { cursor: not-allowed; }
+  .contagem { font-size: .8rem; color: var(--suave); margin-top: 4px; }
   .rotulo-ajuda { display: flex; align-items: center; gap: 6px; }
   .ajuda { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--destaque); background: var(--card); color: var(--destaque); font: 700 .8rem system-ui, sans-serif; cursor: pointer; line-height: 1; padding: 0; flex: none; }
   .ajuda:hover, .ajuda:focus-visible { background: var(--destaque); color: var(--card); }
@@ -92,8 +102,10 @@
       <div class="info" id="infoCodigo"></div>
 
       <div class="rotulo-ajuda"><label for="busca">Classificação tributária (cClassTrib)</label><button type="button" class="ajuda" data-ajuda="classificacao" aria-label="O que é a classificação tributária?" title="O que é a classificação tributária?">?</button></div>
-      <input id="busca" placeholder="Filtrar por código ou descrição, ex.: alimentação, saúde, 200003">
+      <input id="busca" type="search" placeholder="Buscar por nome ou código, ex.: alimentação, saúde, 200003">
+      <label class="chave"><input type="checkbox" id="soValidas" role="switch"><span class="trilho" aria-hidden="true"></span><span id="rotuloValidas">Mostrar só as que valem para este código</span></label>
       <select id="classTrib" size="6" required></select>
+      <div class="contagem" id="contagem"></div>
       <div class="info" id="infoClass"></div>
 
       <div class="linha">
@@ -173,6 +185,8 @@
       <li><code>400</code> e <code>410</code> isenção, imunidade e não incidência</li>
       <li><code>510</code> diferimento</li>
     </ul>
+    <p><b>Busca:</b> digite partes do nome em qualquer ordem, por exemplo "serviço saúde" ou "alimentação humana".</p>
+    <p><b>Chave "Mostrar só as que valem":</b> depois de digitar o NCM ou NBS completo, ligue a chave para ver só as classificações que podem ser usadas com aquele código. As marcadas com ★ são específicas do anexo da LC 214/2025 que inclui o seu código, e costumam ser as que trazem redução.</p>
     <p>Na dúvida, comece por <code>000001</code> (tributação integral). Depois use a busca para procurar o seu setor, por exemplo "saúde", "alimentação" ou "transporte".</p>
     <p>Itens marcados com "(não calculada)" usam regras especiais que esta página ainda não calcula.</p>
   </div>
@@ -212,13 +226,50 @@ function preencherMunicipios() {
   if (capitais[$('uf').value]) $('municipio').value = capitais[$('uf').value];
 }
 
+// Classificação vale para o código quando a nomenclatura é compatível (NCM/NBS)
+// e, se ela tiver anexo na LC 214/2025, o código está no anexo (mesma regra da API oficial).
+function vinculo(c, cod) {
+  const compativel = c.nomenclatura === 'NBS ou NCM' || c.nomenclatura === 'Não possui' || c.nomenclatura === tipo.toUpperCase();
+  if (!compativel) return { valida: false };
+  const ap = Calc.aplicavel(tipo === 'ncm' ? c.anexoNcm : c.anexoNbs, cod, $('data').value);
+  return { valida: ap.valido, especifica: ap.temAnexo && ap.valido };
+}
+
+function codigoCompleto() {
+  const cod = codigoAtual();
+  return cod.length === (tipo === 'ncm' ? 8 : 9) && cod in dados[tipo] ? cod : null;
+}
+
+function atualizarChave() {
+  const cod = codigoCompleto();
+  $('soValidas').disabled = !cod;
+  $('rotuloValidas').textContent = cod ? `Mostrar só as que valem para ${tipo.toUpperCase()} ${cod}` : `Mostrar só as que valem para este código (digite o ${tipo.toUpperCase()} completo)`;
+}
+
 function renderClasses() {
-  const termo = semAcento($('busca').value.trim());
+  atualizarChave();
+  // Busca por nome: todas as palavras precisam aparecer (em qualquer ordem, sem acento)
+  const palavras = semAcento($('busca').value.trim()).split(/\s+/).filter(Boolean);
+  const cod = codigoCompleto();
+  const filtrar = cod && $('soValidas').checked;
   const atual = $('classTrib').value;
-  const lista = classes.filter((c) => !termo || c.codigo.includes(termo) || semAcento(c.descricao).includes(termo) || semAcento(c.cstDescricao).includes(termo));
-  $('classTrib').innerHTML = lista.map((c) => `<option value="${c.codigo}" title="${esc(c.descricao)}" ${c.suportado ? '' : 'class="nao"'}>${c.codigo} · ${esc(c.descricao)}${c.suportado ? '' : ' (não calculada)'}</option>`).join('');
-  if (lista.some((c) => c.codigo === atual)) $('classTrib').value = atual;
-  else if (lista.length && !termo) $('classTrib').value = lista[0].codigo;
+  let lista = classes.map((c) => ({ c, v: cod ? vinculo(c, cod) : { valida: true } }))
+    .filter(({ c, v }) => {
+      if (filtrar && !v.valida) return false;
+      const texto = semAcento(`${c.codigo} ${c.descricao} ${c.cstDescricao} ${c.tratamento || ''}`);
+      return palavras.every((p) => texto.includes(p));
+    });
+  // Com a chave ligada, as específicas do anexo para esse código vêm primeiro
+  if (filtrar) lista.sort((a, b) => (b.v.especifica ? 1 : 0) - (a.v.especifica ? 1 : 0));
+  $('classTrib').innerHTML = lista.map(({ c, v }) => {
+    return `<option value="${c.codigo}" title="${esc(c.descricao)}" ${c.suportado ? '' : 'class="nao"'}>${v.especifica ? '★ ' : ''}${c.codigo} · ${esc(c.descricao)}${c.suportado ? '' : ' (não calculada)'}</option>`;
+  }).join('');
+  if (lista.some(({ c }) => c.codigo === atual)) $('classTrib').value = atual;
+  else if (lista.length) $('classTrib').value = lista[0].c.codigo;
+  const especificas = lista.filter(({ v }) => v.especifica).length;
+  $('contagem').textContent = !lista.length
+    ? (filtrar ? 'Nenhuma classificação válida para este código com essa busca.' : 'Nenhuma classificação encontrada para essa busca.')
+    : `${lista.length} de ${classes.length} classificações` + (filtrar ? ` valem para este código${especificas ? `, ${especificas} específica${especificas > 1 ? 's' : ''} do anexo (★)` : ''}.` : '.');
   mostrarClasse();
 }
 
@@ -257,7 +308,7 @@ function consultarCodigo() {
     if (d) { info.className = 'info ok'; info.textContent = '✓ ' + d; }
     else { info.className = 'info ruim'; info.textContent = `${tipo.toUpperCase()} ${cod} não encontrado na tabela oficial.`; }
   }
-  mostrarClasse();
+  renderClasses();
 }
 
 function verificarReferencia() {
@@ -311,6 +362,7 @@ document.querySelectorAll('.abas button').forEach((b) => b.addEventListener('cli
 }));
 $('codigo').addEventListener('input', consultarCodigo);
 $('busca').addEventListener('input', renderClasses);
+$('soValidas').addEventListener('change', renderClasses);
 $('classTrib').addEventListener('change', mostrarClasse);
 $('uf').addEventListener('change', preencherMunicipios);
 $('data').addEventListener('change', () => { verificarReferencia(); consultarCodigo(); });
