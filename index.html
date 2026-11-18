@@ -138,7 +138,7 @@
   .exemplo td, .exemplo th { font-size: .8rem; padding: 5px 4px; }
   .sub-rotulo { font-size: .78rem; font-weight: 600; color: var(--suave); margin: 10px 0 4px; }
   .selecionada { margin-top: 8px; padding: 8px 10px; border-left: 3px solid var(--destaque); background: var(--destaque-claro); border-radius: 6px; font-size: .88rem; }
-  .selecionada:empty { display: none; }
+  .selecionada:empty, #infoCodigo:empty { display: none; }
   .selecionada span { display: block; font-size: .72rem; color: var(--suave); text-transform: uppercase; letter-spacing: .03em; }
   .selecionada b { color: var(--destaque); margin-right: 4px; }
   footer { margin-top: 24px; font-size: .8rem; color: var(--suave); }
@@ -159,6 +159,7 @@
 
       <div class="rotulo-ajuda rotulo-codigo"><label for="codigo"><span id="rotuloCodigo">Código NCM</span> <span class="dica">(só números)</span></label><button type="button" class="link-busca" id="abrirBuscaNome">🔍 Busca por nome</button></div>
       <input id="codigo" inputmode="numeric" placeholder="ex.: 84713012" required>
+      <div class="selecionada" id="selCodigo"></div>
       <div class="info" id="infoCodigo"></div>
 
       <div class="rotulo-ajuda rotulo-codigo"><span class="rotulo-ajuda"><label for="classTrib">Classificação tributária</label><button type="button" class="ajuda" data-ajuda="classificacao" aria-label="O que é a classificação tributária?" title="O que é a classificação tributária?">?</button></span><button type="button" class="link-busca" id="abrirBuscaClasse">🔍 Busca por nome</button></div>
@@ -193,6 +194,7 @@
           <select id="municipio" required></select>
         </div>
       </div>
+      <div class="selecionada" id="selLocal"></div>
 
       <div id="blocoAliquotas" hidden>
         <div class="caixa aviso">Ainda não há alíquota oficial de referência para essa data. Informe as alíquotas que quer simular (em %).</div>
@@ -394,6 +396,11 @@ function preencherMunicipios() {
   $('municipio').innerHTML = uf.municipios.map(([c, n]) => `<option value="${c}">${esc(n)}</option>`).join('');
   const capitais = { SP: 3550308, RJ: 3304557, MG: 3106200, RS: 4314902, PR: 4106902, SC: 4205407, BA: 2927408, DF: 5300108 };
   if (capitais[$('uf').value]) $('municipio').value = capitais[$('uf').value];
+  mostrarLocal();
+}
+function mostrarLocal() {
+  const m = $('municipio').selectedOptions[0];
+  $('selLocal').innerHTML = m ? `<span>Local selecionado</span><b>${esc(m.text)}/${esc($('uf').value)}</b> código IBGE ${esc(m.value)}` : '';
 }
 
 // Classificação vale para o código quando a nomenclatura é compatível (NCM/NBS)
@@ -471,7 +478,7 @@ function mostrarClasse() {
   const c = classeAtual();
   const info = $('infoClass');
   info.className = 'info';
-  $('selClass').innerHTML = c ? `<span>Selecionada</span><b>${esc(c.codigo)}</b> ${esc(c.descricao)}` : '';
+  $('selClass').innerHTML = c ? `<span>Classificação selecionada</span><b>${esc(c.codigo)}</b> ${esc(c.descricao)}` : '';
   if (!c) { info.textContent = 'Nenhuma classificação encontrada para esse filtro.'; return; }
   let txt = `CST ${c.cst} (${c.cstDescricao}) · ${c.tratamento}`;
   if (c.reducao.some((r) => r > 0)) txt += ` · redução de ${pct(c.reducao[0])} na CBS e ${pct(c.reducao[1])} no IBS`;
@@ -493,11 +500,12 @@ function consultarCodigo() {
   const info = $('infoCodigo');
   const tamanho = tipo === 'ncm' ? 8 : 9;
   info.className = 'info';
+  $('selCodigo').innerHTML = '';
   if (!cod) { info.textContent = ''; }
   else if (cod.length < tamanho) { info.textContent = `${tipo.toUpperCase()} tem ${tamanho} dígitos.`; }
   else {
     const d = Calc.descrever(dados[tipo], tipo, cod);
-    if (d) { info.className = 'info ok'; info.textContent = '✓ ' + d; }
+    if (d) { info.textContent = ''; $('selCodigo').innerHTML = `<span>${tipo === 'ncm' ? 'Produto selecionado' : 'Serviço selecionado'}</span><b>${esc(cod)}</b> ${esc(d)}`; }
     else { info.className = 'info ruim'; info.textContent = `${tipo.toUpperCase()} ${cod} não encontrado na tabela oficial.`; }
   }
   renderClasses();
@@ -840,6 +848,7 @@ $('soValidas').addEventListener('change', renderClasses);
 $('cst').addEventListener('change', renderClasses);
 $('classTrib').addEventListener('change', mostrarClasse);
 $('uf').addEventListener('change', preencherMunicipios);
+$('municipio').addEventListener('change', mostrarLocal);
 $('data').addEventListener('change', () => { verificarReferencia(); consultarCodigo(); });
 $('form').addEventListener('submit', calcular);
 
@@ -1003,6 +1012,7 @@ $('municipioResultados').addEventListener('click', (e) => {
   $('uf').value = b.dataset.uf;
   preencherMunicipios();
   $('municipio').value = b.dataset.municipio;
+  mostrarLocal();
   ultimoFoco = $('municipio');
   fecharAjuda();
 });
