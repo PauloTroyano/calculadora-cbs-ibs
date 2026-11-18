@@ -222,7 +222,7 @@
 
   <footer>
     <p>Calculadora não substitui orientação contábil.</p>
-    <p>Regras: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">calculadora oficial da Receita Federal</a>.</p>
+    <p>Para Nerds: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">API e código oficial da Receita Federal</a>.</p>
     <p id="atualizacao"></p>
   </footer>
 </main>
@@ -381,7 +381,7 @@ async function carregar() {
   const br = (d) => (d ? d.split('-').reverse().join('/') : '—');
   const m = dados.meta;
   // Data e hora da última execução do robô diário (que confere e atualiza as tabelas)
-  $('atualizacao').textContent = `Atualizadas em ${br(m.ultimaVerificacao || m.dataAtualizacao || m.dataExportacao)}${m.horaVerificacao ? ` às ${m.horaVerificacao}` : ''}`;
+  $('atualizacao').textContent = `Regras vigentes atualizadas em ${br(m.ultimaVerificacao || m.dataAtualizacao || m.dataExportacao)}${m.horaVerificacao ? ` às ${m.horaVerificacao}` : ''}`;
 }
 
 function preencherUfs() {
