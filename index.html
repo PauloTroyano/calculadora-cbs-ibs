@@ -220,7 +220,7 @@
   </nav>
 
   <footer>
-    <p>Protótipo, não substitui orientação contábil. Regras e tabelas: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">calculadora oficial da Receita Federal</a>, <span id="versao"></span>. O cálculo foi conferido contra a API oficial em todas as classificações que esta página calcula.</p>
+    <p>Protótipo, não substitui orientação contábil. Regras e tabelas: <a href="https://github.com/ReceitaFederal/calculadora-rtc-regime-regular">calculadora oficial da Receita Federal</a>, <span id="versao"></span>. O cálculo foi conferido contra a API oficial.</p>
     <p id="atualizacao"></p>
   </footer>
 </main>
@@ -379,10 +379,8 @@ async function carregar() {
   const br = (d) => (d ? d.split('-').reverse().join('/') : '—');
   const m = dados.meta;
   $('versao').textContent = `base ${m.versaoBase} de ${br(m.dataVersaoBase)}`;
-  $('atualizacao').textContent = `Tabelas atualizadas em ${br(m.dataAtualizacao || m.dataExportacao)}`
-    + ` · última verificação automática em ${br(m.ultimaVerificacao || m.dataExportacao)}${m.horaVerificacao ? ` às ${m.horaVerificacao}` : ''}`
-    + (m.versaoApi ? ` · calculadora oficial v${m.versaoApi}` : '')
-    + '.';
+  // Data e hora da última execução do robô diário (que confere e atualiza as tabelas)
+  $('atualizacao').textContent = `Tabelas atualizadas em ${br(m.ultimaVerificacao || m.dataAtualizacao || m.dataExportacao)}${m.horaVerificacao ? ` às ${m.horaVerificacao}` : ''}.`;
 }
 
 function preencherUfs() {
