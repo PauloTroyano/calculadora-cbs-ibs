@@ -170,6 +170,7 @@
       <label class="sub-rotulo" for="classTrib">Classificação</label>
       <select id="classTrib" required></select>
       <div class="selecionada" id="selClass"></div>
+      <div class="caixa aviso" id="avisoSetor" hidden></div>
       <div class="contagem" id="contagem"></div>
       <div class="info" id="infoClass"></div>
 
@@ -410,6 +411,36 @@ function vinculo(c, cod) {
   return { valida: ap.valido, especifica: ap.temAnexo && ap.valido };
 }
 
+// Reduções por setor da LC 214/2025 que a tabela oficial não liga a códigos NBS (dependem de quem presta).
+// Sugerimos a classificação pelo grupo da NBS, com o aviso dos requisitos. auto: já vem selecionada.
+const SETORIAIS = [
+  { classe: '200052', auto: true, prefixos: ['11301', '11302', '11401', '11402', '11403', '11405'],
+    aviso: 'Redução de 30% das profissões intelectuais (LC 214/2025, art. 127): vale para profissional registrado no conselho de classe (CRC, OAB, CREA, CAU, CRA, CRMV etc.) ou sociedade formada por profissionais habilitados que prestam o serviço. Se não cumprir os requisitos, use a 000001.' },
+  { classe: '200048', auto: true, prefixos: ['10303', '12507'],
+    aviso: 'Redução de 40% do regime de hotelaria e parques de diversão e temáticos (LC 214/2025). Confira se a atividade se enquadra.' },
+  { classe: '200051', auto: true, prefixos: ['118051', '118052'],
+    aviso: 'Redução de 40% do regime de agências de turismo (LC 214/2025). Confira se a atividade se enquadra.' },
+  { classe: '200049', auto: false, prefixos: ['104011', '104012', '104021', '104022'],
+    aviso: 'Redução de 40% só para transporte coletivo de passageiros rodoviário, ferroviário ou hidroviário (LC 214/2025). Táxi, fretamento e transporte individual seguem a 000001.' },
+  { classe: '200050', auto: false, prefixos: ['104014', '104023'],
+    aviso: 'Redução de 40% só para transporte aéreo regional coletivo (LC 214/2025). Os demais voos seguem a 000001.' },
+];
+function setorial(c, cod) {
+  if (!cod || tipo !== 'nbs') return null;
+  return SETORIAIS.find((x) => x.classe === c.codigo && x.prefixos.some((p) => cod.startsWith(p))) || null;
+}
+// Ordem das sugestões ★: anexo da lei (4) > redução do setor que já vem marcada (3) > padrão 000001 (2) > setor a conferir (1)
+function pesoClasse({ c, v }, cod) {
+  if (!cod) return 0;
+  if (v.especifica) return 4;
+  const st = v.valida ? setorial(c, cod) : null;
+  if (st) return st.auto ? 3 : 1;
+  return c.codigo === PADRAO ? 2 : 0;
+}
+function rotuloPeso(p) {
+  return { 4: 'benefício da lei', 3: 'redução do setor, confira requisitos', 2: 'padrão, mais comum', 1: 'redução do setor, só em alguns casos' }[p] || '';
+}
+
 function codigoCompleto() {
   const cod = codigoAtual();
   return cod.length === (tipo === 'ncm' ? 8 : 9) && cod in dados[tipo] ? cod : null;
@@ -437,7 +468,7 @@ function renderClasses() {
   const porCst = new Map();
   validas.forEach(({ c, v }) => {
     const g = porCst.get(c.cst) || { desc: c.cstDescricao, n: 0, estrela: false };
-    g.n++; if (v.especifica || (cod && c.codigo === PADRAO)) g.estrela = true;
+    g.n++; if (pesoClasse({ c, v }, cod)) g.estrela = true;
     porCst.set(c.cst, g);
   });
   const cstAtual = mudouCodigo || !porCst.has($('cst').value) ? '' : $('cst').value;
@@ -449,23 +480,25 @@ function renderClasses() {
   // Com o código digitado, as sugestões vêm no topo, com estrela:
   // 1) as específicas do anexo da LC 214/2025 que inclui o código (benefício da lei);
   // 2) a 000001, tributação integral, que é a regra padrão e a mais comum quando não há benefício.
-  const peso = ({ c, v }) => (v.especifica ? 2 : (cod && c.codigo === PADRAO ? 1 : 0));
+  const peso = (item) => pesoClasse(item, cod);
   if (cod) lista.sort((a, b) => peso(b) - peso(a));
   $('classTrib').innerHTML = lista.map((item) => {
     const { c } = item;
-    const rotulo = peso(item) === 2 ? ' — benefício da lei' : peso(item) === 1 ? ' — padrão, mais comum' : '';
+    const rotulo = peso(item) ? ` — ${rotuloPeso(peso(item))}` : '';
     return `<option value="${c.codigo}" title="${esc(c.descricao)}" ${c.suportado ? '' : 'class="nao"'}>${peso(item) ? '★ ' : ''}${c.codigo} · ${esc(c.descricao)}${rotulo}${c.suportado ? '' : ' (não calculada)'}</option>`;
   }).join('');
   // Ao trocar de código, já deixa selecionada a primeira sugestão
   if (!mudouCodigo && lista.some(({ c }) => c.codigo === atual)) $('classTrib').value = atual;
   else if (lista.length) $('classTrib').value = lista[0].c.codigo;
   const especificas = validas.filter(({ v }) => v.especifica).length;
+  const doSetor = validas.filter((item) => pesoClasse(item, cod) === 3).length;
   $('contagem').textContent = !lista.length
     ? 'Nenhuma classificação válida para este código.'
     : `${lista.length} de ${classes.length} classificações` + (cstAtual ? ` no CST ${cstAtual}` : '') + (filtrar ? ' valem para este código.' : '.')
-      + (cod ? (especificas
-        ? ` ★ no topo: ${especificas} com benefício da lei para este código e a 000001 (padrão).`
-        : ' Este código não tem benefício específico na lei: o mais comum é a ★ 000001, tributação integral.') : '');
+      + (cod ? (especificas || doSetor
+        ? ` ★ no topo: ${especificas ? `${especificas} com benefício da lei para este código` : 'redução do setor deste serviço'} e a 000001 (padrão).`
+        : ' Este código não tem benefício específico na lei: o mais comum é a ★ 000001, tributação integral.'
+          + (validas.some((item) => pesoClasse(item, cod) === 1) ? ' A outra ★ tem redução do setor que vale só em alguns casos.' : '')) : '');
   mostrarClasse();
 }
 
@@ -477,9 +510,12 @@ function mostrarClasse() {
   const info = $('infoClass');
   info.className = 'info';
   $('selClass').innerHTML = c ? `<span>Classificação selecionada</span><b>${esc(c.codigo)}</b> ${esc(c.descricao)}` : '';
-  if (!c) { info.textContent = 'Nenhuma classificação encontrada para esse filtro.'; return; }
+  if (!c) { $('avisoSetor').hidden = true; info.textContent = 'Nenhuma classificação encontrada para esse filtro.'; return; }
   let txt = `CST ${c.cst} (${c.cstDescricao}) · ${c.tratamento}`;
   if (c.reducao.some((r) => r > 0)) txt += ` · redução de ${pct(c.reducao[0])} na CBS e ${pct(c.reducao[1])} no IBS`;
+  const st = setorial(c, codigoCompleto());
+  $('avisoSetor').innerHTML = st ? `<b>Atenção:</b> ${esc(st.aviso)}` : '';
+  $('avisoSetor').hidden = !st;
   if (!c.suportado) { info.className = 'info ruim'; info.textContent = `Não calculada nesta versão: ${c.motivo || c.tratamento}.`; return; }
   const cod = codigoAtual();
   const tamanho = tipo === 'ncm' ? 8 : 9;
@@ -942,7 +978,7 @@ function buscarClasse() {
   const palavras = semAcento($('buscaClasse').value.trim()).split(/\s+/).filter(Boolean);
   const cod = codigoCompleto();
   const filtrar = cod && $('soValidas').checked;
-  const peso = ({ c, v }) => (v.especifica ? 2 : (cod && c.codigo === PADRAO ? 1 : 0));
+  const peso = (item) => pesoClasse(item, cod);
   // Sem texto: mostra as sugestões (★) para o código digitado; com texto, busca em todas
   const achados = classes.map((c) => ({ c, v: cod ? vinculo(c, cod) : { valida: true } }))
     .filter(({ c, v }) => {
@@ -959,7 +995,7 @@ function buscarClasse() {
   $('classeContagem').textContent = msg;
   $('classeResultados').innerHTML = achados.slice(0, LIMITE).map((item) => {
     const { c, v } = item;
-    const est = peso(item) === 2 ? '★ benefício da lei para este código' : peso(item) === 1 ? '★ padrão, mais comum' : '';
+    const est = peso(item) ? `★ ${rotuloPeso(peso(item))}` : '';
     const red = c.reducao.some((r) => r > 0) ? ` · redução ${c.reducao[0]}% CBS / ${c.reducao[1]}% IBS` : '';
     const aviso = !c.suportado ? '<span class="cam ruim">Não calculada nesta versão</span>' : cod && !v.valida ? `<span class="cam ruim">Não vale para ${tipo.toUpperCase()} ${cod}</span>` : '';
     return `<li><button type="button" data-classe="${c.codigo}"><span class="cod">${c.codigo}</span>${palavras.length ? destacar(c.descricao, palavras) : esc(c.descricao)}<span class="cam">CST ${c.cst} · ${esc(c.tratamento || c.cstDescricao)}${red}</span>${est ? `<span class="tag-est">${est}</span>` : ''}${aviso}</button></li>`;
