@@ -199,9 +199,9 @@
       <div class="selecionada" id="selLocal"></div>
 
       <div id="blocoAliquotas" hidden>
-        <div class="caixa aviso">Ainda não há alíquota oficial de referência para essa data. Informe as alíquotas que quer simular (em %).</div>
+        <div class="caixa aviso">Ainda não há alíquota oficial de referência para essa data. A CBS vem preenchida com <b>11,3%, estimativa do TCU</b> para 2027, e o IBS com 0,1% (0,05% estadual + 0,05% municipal) da transição de 2027 e 2028. Ajuste se quiser simular outros valores (em %).</div>
         <div class="linha3">
-          <div><label for="aCbs">CBS</label><input id="aCbs" inputmode="decimal" value="8,8"></div>
+          <div><label for="aCbs">CBS</label><input id="aCbs" inputmode="decimal" value="11,3"></div>
           <div><label for="aUf">IBS estadual</label><input id="aUf" inputmode="decimal" value="0,05"></div>
           <div><label for="aMun">IBS municipal</label><input id="aMun" inputmode="decimal" value="0,05"></div>
         </div>
@@ -332,9 +332,9 @@
     </ul>
     <h3>Na prática</h3>
     <ul>
-      <li>Até 2032, uma venda pode ter ICMS ou ISS e CBS/IBS ao mesmo tempo. É por isso que o comparativo usa as alíquotas plenas (26,5%) para comparar com o sistema de hoje.</li>
+      <li>Até 2032, uma venda pode ter ICMS ou ISS e CBS/IBS ao mesmo tempo. É por isso que o comparativo usa as alíquotas plenas estimadas (29%: CBS de 11,3% estimada pelo TCU + IBS de 17,7%) para comparar com o sistema de hoje.</li>
       <li>A partir de 2027, a CBS/IBS deixa de entrar na base do ICMS e do ISS, e vice-versa: cada tributo é calculado "por fora".</li>
-      <li>A alíquota final de referência ainda vai ser fixada pelo Senado. A LC 214/2025 prevê um teto de 26,5% somando CBS e IBS.</li>
+      <li>A alíquota final de referência ainda vai ser fixada pelo Senado. A LC 214/2025 prevê uma referência de 26,5% somando CBS e IBS, mas o TCU calculou a CBS de 2027 em 11,3%, o que leva a soma para perto de 29%. Os valores da calculadora para os anos futuros são estimativas.</li>
     </ul>
     <p class="info">Base: Emenda Constitucional 132/2023 e LC 214/2025 (arts. 343 a 348 e disposições de transição). Explicação simplificada.</p>
   </div>
@@ -577,7 +577,7 @@ function calcular(ev) {
       <div class="rotulo">Carga efetiva ${pct((r.total / entrada.valor * 100).toFixed(4))} · valor com tributos ${brl(entrada.valor + r.total)}</div>
       <div class="totais" id="totais"></div>
     </div>
-    ${r.simulado ? '<div class="caixa aviso">Cálculo simulado com as alíquotas que você informou.</div>' : ''}
+    ${r.simulado ? '<div class="caixa aviso"><b>Estimativa:</b> ainda não há alíquota oficial para essa data. O cálculo usa as alíquotas do quadro acima (CBS de 11,3% estimada pelo TCU, se você não alterou).</div>' : ''}
     ${diferido ? `<div class="caixa aviso">Operação com diferimento: ${brl(diferido)} de tributo calculado fica diferido e não é cobrado nesta etapa.</div>` : ''}
     ${r.base !== entrada.valor ? `<div class="caixa aviso">Base de cálculo ajustada pela classificação: ${brl(r.base)}.</div>` : ''}
     <table>
@@ -647,8 +647,8 @@ function atualizarTotais() {
   const ano = entrada.data.slice(0, 4);
   const linha = (rotulo, valor, sub) => `<div class="tot-linha"><span>${rotulo}${sub ? `<small>${esc(sub)}</small>` : ''}</span><span class="tot-carga">${valor === null ? '—' : pct((valor / v * 100).toFixed(2))}</span><b>${valor === null ? '—' : brl(valor)}</b></div>`;
   el.innerHTML = [
-    linha(`CBS + IBS em ${ano}`, r.total, 'cálculo oficial, o mesmo de cima'),
-    linha('CBS + IBS estimado', t.plena ?? null, 'alíquotas plenas a partir de 2033'),
+    linha(`CBS + IBS em ${ano}`, r.total, r.simulado ? 'estimativa (CBS do TCU), o mesmo de cima' : 'cálculo oficial, o mesmo de cima'),
+    linha('CBS + IBS estimado', t.plena ?? null, `estimativa plena: CBS ${pct(dados['impostos-atuais'].reformaPlena.cbs)} (TCU) + IBS ${pct(dados['impostos-atuais'].reformaPlena.ibs)}`),
     linha('Impostos atuais estimados', t.atual ?? null, t.atualNome),
     linha('Simples Nacional estimado', t.sn ?? null, t.snNome || 'informe a receita no comparativo do Simples'),
   ].join('');
@@ -708,7 +708,7 @@ function atualizarComparativo() {
         <tr class="grupo"><td>Impostos atuais (estimativa)</td><td>${pct(cargaAtual.toFixed(2))}</td><td>${brl(totalAtual)}</td></tr>
         ${atuais.map(([n, a, v]) => `<tr class="sub"><td>${n} · ${pct(a)}</td><td></td><td>${brl(v)}</td></tr>`).join('')}
         <tr class="grupo"><td>CBS + IBS em ${ano} (cálculo acima)</td><td>${pct(cargaAno.toFixed(2))}</td><td>${brl(r.total)}</td></tr>
-        <tr class="grupo"><td>CBS + IBS plenos, a partir de 2033 (estimativa ${pct(rp.cbs + rp.ibs)})</td><td>${pct(cargaPlena.toFixed(2))}</td><td>${brl(plena)}</td></tr>
+        <tr class="grupo"><td>CBS + IBS plenos, a partir de 2033 (estimativa ${pct(rp.cbs + rp.ibs)}, CBS do TCU)</td><td>${pct(cargaPlena.toFixed(2))}</td><td>${brl(plena)}</td></tr>
       </tbody>
     </table>
     <div class="caixa ${dif > 0.005 ? 'aviso' : 'ok-caixa'}">Com as alíquotas plenas, a carga ${Math.abs(dif) < 0.005 ? 'fica igual à' : `<b>${dif > 0 ? 'sobe' : 'cai'} ${Math.abs(dif).toLocaleString('pt-BR', { maximumFractionDigits: 2 })} ponto${Math.abs(dif) >= 2 ? 's' : ''} percentua${Math.abs(dif) >= 2 ? 'is' : 'l'}</b> em relação à`} estimativa atual (${dif > 0 ? '+' : ''}${brl(plena - totalAtual)}).</div>
