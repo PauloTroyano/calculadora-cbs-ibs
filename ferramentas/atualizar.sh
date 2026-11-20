@@ -42,7 +42,6 @@ echo "::endgroup::"
 
 cd "$RAIZ"
 cp -r dados "$TRAB/dados-anterior"
-ANTES_NAO_SUPORTADAS="$(node -e "console.log(require('./dados/classes.json').filter(c=>!c.suportado).length)")"
 
 echo "::group::Exportar as tabelas ($HOJE)"
 python3 ferramentas/exportar.py "$API_DIR/calculadora/db/calculadora-pro.db" "http://localhost:$PORTA" "$HOJE"
@@ -54,11 +53,21 @@ node ferramentas/validar.js "http://localhost:$PORTA" --gravar > "$TRAB/validaca
 grep -v '^  NS' "$TRAB/validacao-gravar.txt" || true
 node ferramentas/validar.js "http://localhost:$PORTA" > "$TRAB/validacao.txt" || falhou=1
 grep -v '^  NS' "$TRAB/validacao.txt"
-DEPOIS_NAO_SUPORTADAS="$(node -e "console.log(require('./dados/classes.json').filter(c=>!c.suportado).length)")"
-echo "Classificações não calculadas: antes $ANTES_NAO_SUPORTADAS, agora $DEPOIS_NAO_SUPORTADAS"
-# Se a conta do navegador passou a divergir em classificações que antes funcionavam, não publica
-if [ "$DEPOIS_NAO_SUPORTADAS" -gt "$ANTES_NAO_SUPORTADAS" ]; then
-  echo "::error::Mais classificações deixaram de bater com a API oficial ($ANTES_NAO_SUPORTADAS -> $DEPOIS_NAO_SUPORTADAS). Revisar calc.js antes de publicar."
+# Só bloqueia se uma classificação que já existia e funcionava passou a divergir.
+# Classificações novas da Receita que o navegador ainda não calcula entram marcadas como "não calculada".
+REGREDIRAM="$(node -e "
+const antes = require('$TRAB/dados-anterior/classes.json');
+const agora = require('./dados/classes.json');
+const ok = new Set(antes.filter((c) => c.suportado).map((c) => c.codigo));
+console.log(agora.filter((c) => !c.suportado && ok.has(c.codigo)).map((c) => c.codigo).join(' '));
+")"
+NOVAS_NAO_CALC="$(node -e "
+const antes = new Set(require('$TRAB/dados-anterior/classes.json').map((c) => c.codigo));
+console.log(require('./dados/classes.json').filter((c) => !c.suportado && !antes.has(c.codigo)).map((c) => c.codigo).join(' '));
+")"
+echo "Classificações novas marcadas como não calculadas: ${NOVAS_NAO_CALC:-nenhuma}"
+if [ -n "$REGREDIRAM" ]; then
+  echo "::error::Classificações que funcionavam deixaram de bater com a API oficial: $REGREDIRAM. Revisar calc.js antes de publicar."
   falhou=1
 fi
 echo "::endgroup::"
