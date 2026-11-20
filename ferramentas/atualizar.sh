@@ -3,7 +3,7 @@
 # Só deixa os arquivos novos se a validação passar. Usado pelo workflow diário (.github/workflows/atualizar-tabelas.yml).
 #
 # Uso: ferramentas/atualizar.sh [pasta de trabalho]
-# Requisitos: git, Java 21, Node 18+, Python 3, curl.
+# Requisitos: git, Java (a versão do pom.xml oficial, hoje 25), Node 18+, Python 3, curl.
 set -euo pipefail
 
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"

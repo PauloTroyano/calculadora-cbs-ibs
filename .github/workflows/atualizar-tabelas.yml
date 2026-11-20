@@ -21,10 +21,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Usa a versão do Java que o pom.xml da calculadora oficial pede (a v1.7 passou de 21 para 25)
+      - name: Versão do Java da calculadora oficial
+        id: java
+        run: |
+          v=$(curl -sfL https://raw.githubusercontent.com/ReceitaFederal/calculadora-rtc-regime-regular/main/pom.xml | grep -oP '(?<=<java.version>)[0-9]+' | head -1)
+          echo "versao=${v:-25}" >> "$GITHUB_OUTPUT"
+          echo "Java ${v:-25}"
+
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: ${{ steps.java.outputs.versao }}
 
       - uses: actions/setup-node@v4
         with:
