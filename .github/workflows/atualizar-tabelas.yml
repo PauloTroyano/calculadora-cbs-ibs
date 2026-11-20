@@ -2,8 +2,8 @@ name: Atualizar tabelas da Receita
 
 on:
   schedule:
-    # Todo dia às 05:00 de Brasília (08:00 UTC). O GitHub pode atrasar alguns minutos em horários de pico.
-    - cron: '0 8 * * *'
+    # Todo dia às 04:43 de Brasília (07:43 UTC). Minuto quebrado para fugir da fila de hora cheia do GitHub.
+    - cron: '43 7 * * *'
   workflow_dispatch:
 
 permissions:
