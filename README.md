@@ -51,7 +51,7 @@ O DAS usa as tabelas dos Anexos I a V da LC 123/2006 (redação da LC 155/2016) 
 
 ## Atualização automática
 
-O workflow `.github/workflows/atualizar-tabelas.yml` roda **todo dia às 04:43 (Brasília), minuto escolhido para evitar a fila de hora cheia do GitHub,** e também pode ser disparado
+O workflow `.github/workflows/atualizar-tabelas.yml` roda **todo dia**, agendado às 17:43 e às 04:43 (Brasília) porque o GitHub tem atrasado o agendamento em cerca de 8 horas, e também pode ser disparado
 manualmente em Actions → "Atualizar tabelas da Receita" → Run workflow. Ele roda `ferramentas/atualizar.sh`, que:
 
 1. baixa a versão mais recente da calculadora oficial da Receita, gera o banco e sobe a API oficial;
