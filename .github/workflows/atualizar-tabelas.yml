@@ -2,10 +2,7 @@ name: Atualizar tabelas da Receita
 
 on:
   schedule:
-    # O GitHub tem atrasado o agendamento em ~8h neste repositório.
-    # 17:43 de Brasília (20:43 UTC): com o atraso, costuma rodar perto das 05:00 do dia seguinte.
-    - cron: '43 20 * * *'
-    # 04:43 de Brasília (07:43 UTC): reserva, caso a anterior tenha rodado cedo ou falhado.
+    # Todo dia às 04:43 de Brasília (07:43 UTC). O GitHub tem atrasado o início em cerca de 8 horas.
     - cron: '43 7 * * *'
   workflow_dispatch:
 
